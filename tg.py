@@ -2027,7 +2027,7 @@ async def process_case_open(callback: CallbackQuery):
     
     # Генерируем линию
     line = [random.choice(prize_emojis) for _ in range(100)]
-    line[57] = prize_emoji  # Ставим приз в центр
+    line[56] = prize_emoji  # Ставим приз в центр
     
     if is_skip:
         # Пропускаем анимацию - сразу показываем результат
