@@ -1894,35 +1894,106 @@ async def process_case_skip(callback: CallbackQuery):
     
     await show_case_result(callback.message, chat_id, user_id, user_name, prize, CASES[case_to_open])
 
-@dp.callback_query(lambda c: c.data and c.data.startswith('open_case_'))
+@dp.callback_query(lambda c: c.data and (c.data.startswith('open_case_') or c.data.startswith('skip_case_')))
 async def process_case_open(callback: CallbackQuery):
     register_chat(callback.message.chat.id)
-    await callback.answer()
+    
+    # Определяем тип действия
+    is_skip = callback.data.startswith('skip_case_')
+    case_to_open = callback.data.replace('open_case_', '').replace('skip_case_', '')
     
     chat_id = callback.message.chat.id
     user_id = callback.from_user.id
     user_name = callback.from_user.full_name
     
-    case_to_open = callback.data.replace('open_case_', '')
-    
+    # Получаем данные пользователя
     data = get_user_data(chat_id, user_id, user_name)
     
-    if case_to_open == "daily":
-        prize = open_case("daily", data['legendary_burger'])
-        update_daily_case_time(chat_id, user_id)
-    else:
-        prize = open_case(case_to_open, data['legendary_burger'])
-        cases_dict = data.get('cases_dict', {}).copy()
-        cases_dict[case_to_open] -= 1
-        update_user_data(chat_id, user_id, cases_dict=cases_dict)
+    # Проверяем, что это тот же пользователь
+    if str(user_id) != data['user_id']:
+        await callback.answer("Это не ваш кейс!", show_alert=True)
+        return
     
+    # ===== ИСПРАВЛЕНО: Удаляем клавиатуру СРАЗУ, чтобы нельзя было нажать дважды =====
     try:
         await callback.message.delete_reply_markup()
     except:
         pass
     
-    prize_emojis = []
+    # ===== ИСПРАВЛЕНО: СПИСЫВАЕМ КЕЙС СРАЗУ =====
+    if case_to_open == "daily":
+        # Проверяем кулдаун ежедневного кейса
+        actual_case_cooldown = CASE_COOLDOWN_HOURS
+        if data['legendary_burger'] >= 0 and data['legendary_burger'] < len(BURGER_RANKS):
+            actual_case_cooldown = BURGER_RANKS[data['legendary_burger']]["case_cooldown"]
+        
+        items_dict = get_user_items(data['item_counts'])
+        for item_name, count in items_dict.items():
+            if item_name == "Апельсин":
+                actual_case_cooldown *= (1 - count * 0.05)
+            elif item_name == "Золотой Апельсин":
+                actual_case_cooldown *= (1 - count * 0.10)
+        
+        actual_case_cooldown = max(1, int(actual_case_cooldown))
+        
+        can_get_daily, daily_remaining = can_get_daily_case(chat_id, user_id, actual_case_cooldown)
+        
+        if not can_get_daily:
+            await callback.answer(f"⏳ Ежедневный кейс ещё не доступен! Осталось: {format_time(daily_remaining)}", show_alert=True)
+            await callback.message.delete()
+            return
+        
+        # Помечаем, что ежедневный кейс использован
+        update_daily_case_time(chat_id, user_id)
+        
+    else:
+        # Проверяем наличие кейса в инвентаре
+        cases_dict = data.get('cases_dict', {}).copy()
+        if cases_dict.get(case_to_open, 0) <= 0:
+            await callback.answer("❌ У вас больше нет этого кейса!", show_alert=True)
+            await callback.message.delete()
+            return
+        
+        # СПИСЫВАЕМ КЕЙС СРАЗУ!
+        cases_dict[case_to_open] -= 1
+        update_user_data(chat_id, user_id, cases_dict=cases_dict)
+    
+    # Отвечаем на callback
+    await callback.answer()
+    
+    # ===== ИСПРАВЛЕНО: ПОЛУЧАЕМ ПРИЗ СНАЧАЛА =====
+    prize = open_case(case_to_open, data['legendary_burger'])
     case = CASES[case_to_open]
+    
+    # ===== ИСПРАВЛЕНО: ОПРЕДЕЛЯЕМ ЭМОДЗИ ПРИЗА НА ОСНОВЕ РЕАЛЬНОГО ПРИЗА =====
+    if "emoji" in prize:
+        prize_emoji = prize["emoji"]
+    elif prize["value"] == "autoburger":
+        prize_emoji = "🍔"
+    elif prize["value"] == "rotten_leg":
+        prize_emoji = "💀"
+    elif prize["value"] == "water":
+        prize_emoji = "💧"
+    elif isinstance(prize["value"], int):
+        if prize["value"] < 0:
+            prize_emoji = "📉"
+        elif prize["value"] == 0:
+            prize_emoji = "🔄"
+        elif prize["value"] < 50:
+            prize_emoji = "📈"
+        elif prize["value"] < 100:
+            prize_emoji = "⬆️"
+        elif prize["value"] < 500:
+            prize_emoji = "🚀"
+        elif prize["value"] < 1000:
+            prize_emoji = "⭐"
+        else:
+            prize_emoji = "💥"
+    else:
+        prize_emoji = "🎁"
+    
+    # Определяем эмодзи для анимации
+    prize_emojis = []
     for p in case["prizes"]:
         if "emoji" in p:
             emoji = p["emoji"]
@@ -1954,46 +2025,37 @@ async def process_case_open(callback: CallbackQuery):
         if emoji not in prize_emojis:
             prize_emojis.append(emoji)
     
-    # ИСПРАВЛЕНО: Создаём сообщение для анимации
+    # Генерируем линию
+    line = [random.choice(prize_emojis) for _ in range(100)]
+    line[57] = prize_emoji  # Ставим приз в центр
+    
+    if is_skip:
+        # Пропускаем анимацию - сразу показываем результат
+        visible = line[52:61]
+        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+        result_embed = f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**"
+        
+        try:
+            await callback.message.edit_text(result_embed)
+        except Exception as e:
+            print(f"Ошибка при показе результата: {e}")
+        
+        await asyncio.sleep(1.5)
+        
+        # Показываем финальный результат
+        await show_case_result(callback.message, chat_id, user_id, user_name, prize, case)
+        return
+    
+    # Полная анимация
     anim_text = f"🎰 **{case['name']}** 🎰"
     anim_msg = await callback.message.reply(anim_text)
     
-    # Генерируем линию
-    line = [random.choice(prize_emojis) for _ in range(100)]
-    
-    # Определяем эмодзи приза
-    if "emoji" in prize:
-        prize_emoji = prize["emoji"]
-    elif prize["value"] == "autoburger":
-        prize_emoji = "🍔"
-    elif prize["value"] == "rotten_leg":
-        prize_emoji = "💀"
-    elif prize["value"] == "water":
-        prize_emoji = "💧"
-    elif isinstance(prize["value"], int):
-        if prize["value"] < 0:
-            prize_emoji = "📉"
-        elif prize["value"] == 0:
-            prize_emoji = "🔄"
-        elif prize["value"] < 50:
-            prize_emoji = "📈"
-        elif prize["value"] < 100:
-            prize_emoji = "⬆️"
-        elif prize["value"] < 500:
-            prize_emoji = "🚀"
-        elif prize["value"] < 1000:
-            prize_emoji = "⭐"
-        else:
-            prize_emoji = "💥"
-    else:
-        prize_emoji = "🎁"
-    
-    # ИСПРАВЛЕНО: Анимация с проверкой на изменение текста
     animation_frames = [
         (1, 5), (2, 10), (3, 15), (4, 20), (5, 25),
         (6, 30), (7, 35), (8, 39), (9, 43), (10, 47),
         (11, 50), (12, 52), (13, 54), (14, 55), (15, 56),
-        (16, 56), (17, 57), (18, 57), (19, 57), (20, 57)
+        (16, 56), (17, 57), (18, 57), (19, 57), (20, 57),
+        (21, 57)  # Добавляем дополнительный кадр для надёжности
     ]
     
     last_text = None
@@ -2003,7 +2065,6 @@ async def process_case_open(callback: CallbackQuery):
         display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
         current_text = f"**{display_line}**"
         
-        # Проверяем, изменился ли текст
         if current_text != last_text:
             try:
                 await anim_msg.edit_text(current_text)
@@ -2013,96 +2074,20 @@ async def process_case_open(callback: CallbackQuery):
         
         await asyncio.sleep(0.5)
     
-    # ИСПРАВЛЕНО: Показываем результат (ставим приз в центр)
-    line[57] = prize_emoji
+    # Показываем результат
     visible = line[52:61]
     display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+    result_embed = f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**"
     
-    # ИСПРАВЛЕНО: Убеждаемся, что текст отличается от предыдущего
-    result_text = f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**"
-    
-    if result_text != last_text:
-        try:
-            await anim_msg.edit_text(result_text)
-        except Exception as e:
-            print(f"Ошибка при показе результата: {e}")
+    try:
+        await anim_msg.edit_text(result_embed)
+    except Exception as e:
+        print(f"Ошибка при показе результата: {e}")
     
     await asyncio.sleep(1.5)
     
-    # Обработка приза (как в твоём коде)
-    items_dict = get_user_items(data['item_counts'])
-    new_number = data['current_number']
-    new_autoburger_count = data['autoburger_count']
-    new_next_autoburger_time = data['next_autoburger_time']
-    prize_value = prize["value"]
-    
-    has_water = items_dict.get("Стакан воды", 0) > 0
-    
-    if prize_value == "autoburger":
-        new_autoburger_count += 1
-        interval = get_autoburger_interval(new_autoburger_count)
-        if interval:
-            new_next_autoburger_time = datetime.now() + timedelta(hours=interval)
-        result_display = f"🎉 **АВТОБУРГЕР!** 🍔✨"
-        
-    elif prize_value == "rotten_leg":
-        items_dict["Гнилая ножка KFC"] = items_dict.get("Гнилая ножка KFC", 0) + 1
-        result_display = f"💀 **Гнилая ножка KFC!** 💀"
-        
-    elif prize_value == "water":
-        items_dict["Стакан воды"] = items_dict.get("Стакан воды", 0) + 1
-        result_display = f"💧 **Стакан воды!** 💧"
-        
-    elif isinstance(prize_value, str):
-        items_dict[prize_value] = items_dict.get(prize_value, 0) + 1
-        result_display = f"🎁 **{prize_value}** {prize_emoji}"
-        
-    else:
-        if has_water and case_to_open != "daily":
-            prize_value = prize_value // 3
-        new_number = data['current_number'] + prize_value
-        result_display = f"🎉 **{prize_value:+d} кг** {prize_emoji}"
-    
-    update_data = {
-        'number': new_number,
-        'user_name': user_name,
-        'autoburger_count': new_autoburger_count,
-        'next_autoburger_time': new_next_autoburger_time,
-        'item_counts': save_user_items(items_dict),
-        'active_case_message_id': None
-    }
-    
-    if case_to_open == "daily":
-        update_data['daily_case_last_time'] = datetime.now()
-    
-    update_user_data(chat_id, user_id, **update_data)
-    
-    rank_name, rank_emoji = get_rank(new_number)
-    
-    # Финальное сообщение
-    final_text = f"{case['emoji']} Открытие {case['name']}\n\n"
-    
-    if prize_value == "autoburger":
-        final_text += f"🍔✨ **АВТОБУРГЕР** ✨🍔\n\n"
-        final_text += f"Всего автобургеров: {new_autoburger_count}\n"
-        final_text += f"Интервал: каждые {get_autoburger_interval(new_autoburger_count)} ч\n"
-        final_text += f"Бонус: +{AUTOBURGER_MAX_BONUS * (1 - math.exp(-AUTOBURGER_GROWTH_RATE * new_autoburger_count)) * 100:.1f}%"
-    elif prize_value in ["rotten_leg", "water"]:
-        final_text += f"🎁 Приз: {result_display}\n\n"
-        final_text += f"📦 Теперь у вас: {items_dict.get(prize_value, 0)} шт"
-    elif isinstance(prize_value, str):
-        final_text += f"🎁 Приз: {result_display}\n\n"
-        final_text += f"📦 Теперь у вас: {items_dict.get(prize_value, 0)} шт"
-    else:
-        final_text += f"🎁 Приз: {result_display}\n\n"
-        final_text += f"🍖 Новый вес: {new_number}kg\n"
-        final_text += f"🎖️ Звание: {rank_emoji} {rank_name}"
-    
-    try:
-        await anim_msg.reply(final_text)
-    except Exception as e:
-        print(f"Ошибка при отправке финального сообщения: {e}")
-        await callback.message.reply(final_text)
+    # Показываем финальный результат
+    await show_case_result(anim_msg, chat_id, user_id, user_name, prize, case)
 
 async def case_animation(message, chat_id, user_id, user_name, case_id, prize, skip=False):
     """Анимация открытия кейса с возможностью пропуска"""
