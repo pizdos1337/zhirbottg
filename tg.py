@@ -1819,7 +1819,7 @@ async def cmd_fat_case(message: types.Message):
         )
         return
     
-    # Создаём клавиатуру с кнопками открытия и пропуска
+    # Создаём клавиатуру с кнопками
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -1840,7 +1840,6 @@ async def cmd_fat_case(message: types.Message):
     
     case_msg = await message.reply(case_text, reply_markup=keyboard)
     
-    # Сохраняем информацию о сообщении и типе кейса
     update_user_data(
         chat_id, user_id,
         active_case_message_id=str(case_msg.message_id),
@@ -1898,7 +1897,6 @@ async def process_case_skip(callback: CallbackQuery):
 async def process_case_open(callback: CallbackQuery):
     register_chat(callback.message.chat.id)
     
-    # Определяем тип действия
     is_skip = callback.data.startswith('skip_case_')
     case_to_open = callback.data.replace('open_case_', '').replace('skip_case_', '')
     
@@ -1906,23 +1904,20 @@ async def process_case_open(callback: CallbackQuery):
     user_id = callback.from_user.id
     user_name = callback.from_user.full_name
     
-    # Получаем данные пользователя
     data = get_user_data(chat_id, user_id, user_name)
     
-    # Проверяем, что это тот же пользователь
     if str(user_id) != data['user_id']:
         await callback.answer("Это не ваш кейс!", show_alert=True)
         return
     
-    # ===== ИСПРАВЛЕНО: Удаляем клавиатуру СРАЗУ, чтобы нельзя было нажать дважды =====
+    # Удаляем клавиатуру сразу
     try:
         await callback.message.delete_reply_markup()
     except:
         pass
     
-    # ===== ИСПРАВЛЕНО: СПИСЫВАЕМ КЕЙС СРАЗУ =====
+    # ===== СПИСЫВАЕМ КЕЙС =====
     if case_to_open == "daily":
-        # Проверяем кулдаун ежедневного кейса
         actual_case_cooldown = CASE_COOLDOWN_HOURS
         if data['legendary_burger'] >= 0 and data['legendary_burger'] < len(BURGER_RANKS):
             actual_case_cooldown = BURGER_RANKS[data['legendary_burger']]["case_cooldown"]
@@ -1939,33 +1934,28 @@ async def process_case_open(callback: CallbackQuery):
         can_get_daily, daily_remaining = can_get_daily_case(chat_id, user_id, actual_case_cooldown)
         
         if not can_get_daily:
-            await callback.answer(f"⏳ Ежедневный кейс ещё не доступен! Осталось: {format_time(daily_remaining)}", show_alert=True)
+            await callback.answer(f"⏳ Ежедневный кейс ещё не доступен!", show_alert=True)
             await callback.message.delete()
             return
         
-        # Помечаем, что ежедневный кейс использован
         update_daily_case_time(chat_id, user_id)
-        
     else:
-        # Проверяем наличие кейса в инвентаре
         cases_dict = data.get('cases_dict', {}).copy()
         if cases_dict.get(case_to_open, 0) <= 0:
             await callback.answer("❌ У вас больше нет этого кейса!", show_alert=True)
             await callback.message.delete()
             return
         
-        # СПИСЫВАЕМ КЕЙС СРАЗУ!
         cases_dict[case_to_open] -= 1
         update_user_data(chat_id, user_id, cases_dict=cases_dict)
     
-    # Отвечаем на callback
     await callback.answer()
     
-    # ===== ИСПРАВЛЕНО: ПОЛУЧАЕМ ПРИЗ СНАЧАЛА =====
+    # ===== ПОЛУЧАЕМ ПРИЗ =====
     prize = open_case(case_to_open, data['legendary_burger'])
     case = CASES[case_to_open]
     
-    # ===== ИСПРАВЛЕНО: ОПРЕДЕЛЯЕМ ЭМОДЗИ ПРИЗА НА ОСНОВЕ РЕАЛЬНОГО ПРИЗА =====
+    # ===== ОПРЕДЕЛЯЕМ ЭМОДЗИ ПРИЗА =====
     if "emoji" in prize:
         prize_emoji = prize["emoji"]
     elif prize["value"] == "autoburger":
@@ -1992,7 +1982,7 @@ async def process_case_open(callback: CallbackQuery):
     else:
         prize_emoji = "🎁"
     
-    # Определяем эмодзи для анимации
+    # ===== СОБИРАЕМ ЭМОДЗИ ДЛЯ АНИМАЦИИ =====
     prize_emojis = []
     for p in case["prizes"]:
         if "emoji" in p:
@@ -2025,37 +2015,32 @@ async def process_case_open(callback: CallbackQuery):
         if emoji not in prize_emojis:
             prize_emojis.append(emoji)
     
-    # Генерируем линию
+    # ===== ГЕНЕРИРУЕМ ЛИНИЮ И СРАЗУ СТАВИМ ПРИЗ =====
     line = [random.choice(prize_emojis) for _ in range(100)]
-    line[56] = prize_emoji  # Ставим приз в центр
+    line[57] = prize_emoji  # ← КЛЮЧЕВОЕ - приз ставится ДО анимации
     
     if is_skip:
-        # Пропускаем анимацию - сразу показываем результат
+        # Пропуск анимации
         visible = line[52:61]
         display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-        result_embed = f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**"
         
         try:
-            await callback.message.edit_text(result_embed)
-        except Exception as e:
-            print(f"Ошибка при показе результата: {e}")
+            await callback.message.edit_text(f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**")
+        except:
+            pass
         
         await asyncio.sleep(1.5)
-        
-        # Показываем финальный результат
         await show_case_result(callback.message, chat_id, user_id, user_name, prize, case)
         return
     
-    # Полная анимация
-    anim_text = f"🎰 **{case['name']}** 🎰"
-    anim_msg = await callback.message.reply(anim_text)
+    # ===== ПОЛНАЯ АНИМАЦИЯ =====
+    anim_msg = await callback.message.reply(f"🎰 **{case['name']}** 🎰")
     
     animation_frames = [
         (1, 5), (2, 10), (3, 15), (4, 20), (5, 25),
         (6, 30), (7, 35), (8, 39), (9, 43), (10, 47),
         (11, 50), (12, 52), (13, 54), (14, 55), (15, 56),
-        (16, 56), (17, 57), (18, 57), (19, 57), (20, 57),
-        (21, 57)  # Добавляем дополнительный кадр для надёжности
+        (16, 56), (17, 57), (18, 57), (19, 57), (20, 57)
     ]
     
     last_text = None
@@ -2077,18 +2062,16 @@ async def process_case_open(callback: CallbackQuery):
     # Показываем результат
     visible = line[52:61]
     display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-    result_embed = f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**"
     
     try:
-        await anim_msg.edit_text(result_embed)
+        await anim_msg.edit_text(f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**")
     except Exception as e:
         print(f"Ошибка при показе результата: {e}")
     
     await asyncio.sleep(1.5)
     
-    # Показываем финальный результат
     await show_case_result(anim_msg, chat_id, user_id, user_name, prize, case)
-
+    
 async def case_animation(message, chat_id, user_id, user_name, case_id, prize, skip=False):
     """Анимация открытия кейса с возможностью пропуска"""
     
@@ -2226,7 +2209,6 @@ async def case_animation(message, chat_id, user_id, user_name, case_id, prize, s
 async def show_case_result(message, chat_id, user_id, user_name, prize, case):
     """Показывает финальный результат открытия кейса"""
     
-    # Получаем актуальные данные пользователя
     data = get_user_data(chat_id, user_id, user_name)
     
     items_dict = get_user_items(data['item_counts'])
@@ -2270,9 +2252,11 @@ async def show_case_result(message, chat_id, user_id, user_name, prize, case):
         'next_autoburger_time': new_next_autoburger_time,
         'item_counts': save_user_items(items_dict),
         'active_case_message_id': None,
-        'last_case_type': None,
-        'last_case_prize': None
+        'last_case_type': None
     }
+    
+    if case["name"] == "Жиркейс":
+        update_data['daily_case_last_time'] = datetime.now()
     
     update_user_data(chat_id, user_id, **update_data)
     
@@ -2297,12 +2281,11 @@ async def show_case_result(message, chat_id, user_id, user_name, prize, case):
         final_text += f"🍖 Новый вес: {new_number}kg\n"
         final_text += f"🎖️ Звание: {rank_emoji} {rank_name}"
     
-    # Отправляем финальное сообщение
     try:
         await message.reply(final_text)
     except:
-        await message.reply("✅ Кейс открыт! (ошибка отображения)")
-
+        await message.reply("✅ Кейс открыт!")
+        
 async def cmd_fat_case_chances(message: types.Message):
     register_chat(message.chat.id)
     """Шансы в кейсе"""
