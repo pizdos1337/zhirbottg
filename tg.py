@@ -2064,10 +2064,7 @@ async def process_case_open(callback: CallbackQuery):
         await show_case_result(callback.message, chat_id, user_id, user_name, prize, case)
         return
     
-    # ===== АНИМАЦИЯ С GIF =====
-    
-    # Отправляем сообщение "ПРОКРУТКА"
-    wait_msg = await callback.message.reply("🎰 **ПРОКРУТКА** 🎰")
+    # ===== ТЕКСТОВАЯ АНИМАЦИЯ (КАК РАНЬШЕ) =====
     
     # Определяем эмодзи для анимации
     prize_emojis = []
@@ -2129,46 +2126,51 @@ async def process_case_open(callback: CallbackQuery):
     else:
         prize_emoji = "🎁"
     
-    # Генерируем GIF
-    try:
-        gif_buffer = await generate_case_gif(prize_emoji, prize_emojis, case['name'])
+    # Генерируем линию и СРАЗУ ставим приз
+    line = [random.choice(prize_emojis) for _ in range(100)]
+    line[57] = prize_emoji
     
-        if gif_buffer is None:
-            # Если GIF не создался
-            await wait_msg.edit_text("⚡ Открываем кейс...")
-            await asyncio.sleep(1)
-            await wait_msg.delete()
-        else:
-            # Отправляем GIF
-            gif_msg = await callback.message.reply_animation(
-                animation=types.input_file.BufferedInputFile(gif_buffer.getvalue(), "case.gif"),
-                caption="🎰 Крутим барабан..."
-            )
+    # Анимация
+    anim_msg = await callback.message.reply(f"🎰 **{case['name']}** 🎰")
+    
+    # Используем проверенные кадры
+    animation_frames = [
+        (1, 5), (2, 10), (3, 15), (4, 20), (5, 25),
+        (6, 30), (7, 35), (8, 39), (9, 43), (10, 47),
+        (11, 50), (12, 52), (13, 54), (14, 55), (15, 56),
+        (16, 56), (17, 57), (18, 57), (19, 57), (20, 57)
+    ]
+    
+    last_text = None
+    
+    for frame_num, center_pos in animation_frames:
+        visible = line[center_pos-4:center_pos+5]
+        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+        current_text = f"**{display_line}**"
         
-            # Ждем окончания анимации
-            await asyncio.sleep(6)
-        
-            # Удаляем сообщение с GIF
+        # Меняем только если текст новый
+        if current_text != last_text:
             try:
-                await gif_msg.delete()
-            except:
-                pass
+                await anim_msg.edit_text(current_text)
+                last_text = current_text
+            except Exception as e:
+                print(f"Ошибка анимации: {e}")
         
-            # Удаляем сообщение "ПРОКРУТКА"
-            try:
-                await wait_msg.delete()
-            except:
-                pass
-        
-    except Exception as e:
-        print(f"❌ Ошибка в процессе отправки GIF: {e}")
-        try:
-            await wait_msg.delete()
-        except:
-            pass
+        await asyncio.sleep(0.5)  # 20 кадров * 0.5 = 10 секунд
     
     # Показываем результат
-    await show_case_result(callback.message, chat_id, user_id, user_name, prize, case)
+    visible = line[52:61]
+    display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+    
+    try:
+        await anim_msg.edit_text(f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**")
+    except:
+        pass
+    
+    await asyncio.sleep(1.5)
+    
+    # Показываем финальный результат
+    await show_case_result(anim_msg, chat_id, user_id, user_name, prize, case)
     
 async def case_animation(message, chat_id, user_id, user_name, case_id, prize, skip=False):
     """Анимация открытия кейса с возможностью пропуска"""
