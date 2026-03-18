@@ -38,7 +38,7 @@ TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 PREFIX = "/"
 DB_FOLDER = "/app/data/telegram_databases"
 COOLDOWN_HOURS = 1
-TESTER_IDS = []
+TESTER_IDS = [1776742823]
 
 # Настройки вероятностей
 BASE_MINUS_CHANCE = 0.2
@@ -2845,6 +2845,43 @@ async def cmd_shop(message: types.Message):
     
     await message.reply(response)
 
+async def cmd_reset_all_cooldowns(message: types.Message):
+    """Сбрасывает все кулдауны у всех пользователей (только для тебя)"""
+    
+    # Проверяем, что это ты
+    if message.from_user.id not in TESTER_IDS:
+        await message.reply("❌ Эта команда только для создателя!")
+        return
+    
+    chat_id = message.chat.id
+    db_path = get_db_path(chat_id)
+    
+    if not os.path.exists(db_path):
+        await message.reply("❌ База данных не найдена!")
+        return
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Сбрасываем все кулдауны
+    cursor.execute('''
+        UPDATE user_fat SET 
+            fat_cooldown_time = NULL,
+            last_case_time = NULL,
+            daily_case_last_time = NULL,
+            last_command_use_time = NULL,
+            duel_active = 0,
+            duel_start_time = NULL,
+            upgrade_active = 0,
+            active_case_message_id = NULL
+    ''')
+    
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    
+    await message.reply(f"✅ Сброшены все кулдауны для {affected} пользователей!")
+    
 async def cmd_buy(message: types.Message):
     register_chat(message.chat.id)
     """Покупка предметов"""
@@ -4731,6 +4768,7 @@ COMMAND_MAP = {
     'duel': 'cmd_duel',
     'cancel': 'cmd_cancel_duel',
     'giveitems': 'cmd_give_item',
+    'сбросвсехкд': 'cmd_reset_all_cooldowns',
 }
 
 async def force_update_commands():
