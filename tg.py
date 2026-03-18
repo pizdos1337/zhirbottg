@@ -3877,6 +3877,97 @@ async def process_reset_confirmation(callback: CallbackQuery):
     else:
         await callback.message.edit_text("❌ База данных не найдена!")
 
+async def cmd_global_leaderboard(message: types.Message):
+    """Показывает топ чатов по общей массе жира"""
+    register_chat(message.chat.id)
+    
+    chat_stats = []
+    
+    for chat_id in active_chats:
+        try:
+            # Получаем информацию о чате
+            chat = await bot.get_chat(chat_id)
+            chat_name = chat.title or f"Чат {chat_id}"
+            
+            # Получаем статистику чата
+            stats = get_chat_stats(chat_id)
+            
+            if stats['total_users'] > 0:  # Только чаты с участниками
+                chat_stats.append({
+                    'id': chat_id,
+                    'name': chat_name[:30] + "..." if len(chat_name) > 30 else chat_name,
+                    'total_weight': stats['total_weight'],
+                    'users': stats['total_users'],
+                    'avg_weight': stats['avg_weight'],
+                    'autoburgers': stats['total_autoburgers'],
+                    'burger_counts': stats['burger_counts']
+                })
+        except Exception as e:
+            print(f"Ошибка при получении статистики чата {chat_id}: {e}")
+            continue
+    
+    if not chat_stats:
+        await message.reply("📭 Нет данных по чатам!")
+        return
+    
+    # Сортируем по общей массе
+    chat_stats.sort(key=lambda x: x['total_weight'], reverse=True)
+    
+    # Формируем ответ
+    response = "🌍 **ГЛОБАЛЬНЫЙ РЕЙТИНГ ЧАТОВ** 🌍\n\n"
+    response += "Топ чатов по общей массе жира:\n\n"
+    
+    for i, chat in enumerate(chat_stats[:15], 1):  # Топ-15 чатов
+        if i == 1:
+            place = "🥇"
+        elif i == 2:
+            place = "🥈"
+        elif i == 3:
+            place = "🥉"
+        else:
+            place = f"{i}."
+        
+        # Форматируем вес
+        if chat['total_weight'] >= 1000000:
+            weight_display = f"{chat['total_weight']/1000000:.1f}M кг"
+        elif chat['total_weight'] >= 1000:
+            weight_display = f"{chat['total_weight']/1000:.1f}K кг"
+        else:
+            weight_display = f"{chat['total_weight']} кг"
+        
+        # Считаем легендарные бургеры
+        total_burgers = sum(chat['burger_counts'])
+        burger_icons = ""
+        for idx, count in enumerate(chat['burger_counts']):
+            if count > 0:
+                burger_icons += f"{BURGER_RANKS[idx]['emoji']}{count} "
+        
+        response += f"{place} **{chat['name']}**\n"
+        response += f"   📦 **{weight_display}** | 👥 {chat['users']} уч.\n"
+        response += f"   📊 Средний вес: {chat['avg_weight']:.0f} кг\n"
+        if burger_icons:
+            response += f"   ✨ {burger_icons}\n"
+        response += "\n"
+    
+    # Общая статистика
+    total_global_weight = sum(c['total_weight'] for c in chat_stats)
+    total_global_users = sum(c['users'] for c in chat_stats)
+    total_global_chats = len(chat_stats)
+    
+    if total_global_weight >= 1000000:
+        global_display = f"{total_global_weight/1000000:.1f}M кг"
+    elif total_global_weight >= 1000:
+        global_display = f"{total_global_weight/1000:.1f}K кг"
+    else:
+        global_display = f"{total_global_weight} кг"
+    
+    response += f"📊 **ГЛОБАЛЬНАЯ СТАТИСТИКА**\n"
+    response += f"🌍 Чатов: **{total_global_chats}**\n"
+    response += f"👥 Участников: **{total_global_users}**\n"
+    response += f"⚖️ Всего массы: **{global_display}**\n"
+    
+    await message.reply(response)
+
 async def cmd_fat_reset(message: types.Message):
     register_chat(message.chat.id)
     """Сброс веса конкретного пользователя (только для тестеров)"""
@@ -4736,6 +4827,7 @@ COMMAND_MAP = {
     'жиркейс': 'cmd_fat_case',
     'жиркейс_шансы': 'cmd_fat_case_chances',
     'жиротрясы': 'cmd_fat_leaderboard',
+    'жирглобал': 'cmd_global_leaderboard',
     'жирстат': 'cmd_fat_stats',
     'жиринфо': 'cmd_fat_info',
     'жирзвания': 'cmd_show_ranks',
@@ -4764,6 +4856,7 @@ COMMAND_MAP = {
     'fatcase': 'cmd_fat_case',
     'fatcase_chances': 'cmd_fat_case_chances',
     'fattys': 'cmd_fat_leaderboard',
+    'fatglobal': 'cmd_global_leaderboard',
     'fatstat': 'cmd_fat_stats',
     'fatinfo': 'cmd_fat_info',
     'ranks': 'cmd_show_ranks',
@@ -4798,6 +4891,7 @@ async def force_update_commands():
         BotCommand(command="fatcase", description="Открыть доступный кейс"),
         BotCommand(command="fatcase_chances", description="Шансы в ежедневном кейсе"),
         BotCommand(command="fattys", description="Лидерборд для чата"),
+        BotCommand(command="fatglobal", description="Глобальный лидерборд"),
         BotCommand(command="fatstat", description="Статистика Автобургеров"),
         BotCommand(command="fatinfo", description="Информация"),
         BotCommand(command="ranks", description="Звания"),
