@@ -1584,91 +1584,54 @@ async def upgrade_kg_animation(message: types.Message, user_id, user_name, amoun
     await anim_msg.edit_text(result_text_full)
 
 async def generate_case_gif(prize_emoji, prize_emojis, case_name):
-    """Генерирует GIF анимацию открытия кейса (ровно под 1 строку текста)"""
+    """Улучшенная версия"""
     
-    # Размеры под одно сообщение Telegram
-    width = 450  # 9 эмодзи * 50px примерно
-    height = 70  # высота одной строки
-    
-    # Генерируем линию из 100 эмодзи
-    line = [random.choice(prize_emojis) for _ in range(100)]
-    line[57] = prize_emoji  # приз в центре
+    width = 550
+    height = 90
+    font_size = 52
     
     frames = []
+    line = [random.choice(prize_emojis) for _ in range(100)]
+    line[57] = prize_emoji
     
-    # Создаем 30 кадров для 6-секундной анимации
+    # Плавное движение с эффектом "захвата"
     for i in range(30):
-        # Создаем изображение с прозрачным фоном
-        img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        img = Image.new('RGB', (width, height), (20, 20, 30))  # темно-синий фон
         draw = ImageDraw.Draw(img)
         
-        # Эффект "кручения" - окно движется туда-сюда
-        progress = i / 29  # от 0 до 1
-        # Синусоидальное движение: 40 -> 70 -> 40
-        center_pos = int(40 + 30 * math.sin(progress * math.pi))
+        # Easing function для плавности
+        t = i / 29
+        # Сначала быстро, потом замедление
+        progress = 1 - (1 - t) ** 2  
+        center_pos = int(30 + progress * 40)
         
-        # Берем 9 эмодзи с центром в center_pos
-        start = max(0, center_pos - 4)
-        end = min(100, center_pos + 5)
-        visible = line[start:end]
-        
-        # Добиваем до 9 если надо
+        visible = line[center_pos-4:center_pos+5]
         while len(visible) < 9:
-            if start > 0:
-                visible.insert(0, random.choice(prize_emojis))
-            else:
-                visible.append(random.choice(prize_emojis))
+            visible.append(random.choice(prize_emojis))
         
-        # Формируем строку с палками
         display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
         
-        # Рисуем текст
-        try:
-            # Пробуем разные шрифты для эмодзи
-            font_paths = [
-                "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-                "/System/Library/Fonts/Apple Color Emoji.ttc",
-                "C:/Windows/Fonts/seguiemj.ttf",
-                "arial.ttf"
-            ]
-            
-            font = None
-            for font_path in font_paths:
-                if os.path.exists(font_path):
-                    font = ImageFont.truetype(font_path, 40)
-                    break
-            if font is None:
-                font = ImageFont.load_default()
-        except:
-            font = ImageFont.load_default()
+        font = ImageFont.truetype("seguiemj.ttf", font_size)
         
-        # Центрируем текст
         bbox = draw.textbbox((0, 0), display_line, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        x = (width - text_width) // 2
-        y = (height - text_height) // 2
+        x = (width - (bbox[2] - bbox[0])) // 2
+        y = (height - (bbox[3] - bbox[1])) // 2
         
-        # Рисуем текст с обводкой для читаемости
-        for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1)]:
-            draw.text((x+dx, y+dy), display_line, font=font, fill=(0, 0, 0, 200))
+        # Золотая обводка для эпичности
+        for dx, dy in [(-2,-2), (-2,2), (2,-2), (2,2)]:
+            draw.text((x+dx, y+dy), display_line, font=font, fill=(200, 150, 0))
         draw.text((x, y), display_line, font=font, fill=(255, 255, 255))
         
         frames.append(np.array(img))
     
-    # Сохраняем в GIF с одним циклом
     gif_buffer = io.BytesIO()
     imageio.mimsave(
-        gif_buffer, 
-        frames, 
-        format='GIF',
-        duration=0.2,  # 0.2 сек * 30 кадров = 6 секунд
-        loop=1,  # Один цикл и остановка
-        palettesize=64,  # Оптимизация размера
-        subrectangles=True
+        gif_buffer, frames, format='GIF',
+        duration=0.18,  # 5.4 секунды
+        loop=1,
+        quantizer='nq'
     )
     gif_buffer.seek(0)
-    
     return gif_buffer
     
 async def duel_animation(message: types.Message, challenger_name, opponent_name):
