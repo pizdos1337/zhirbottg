@@ -1584,55 +1584,158 @@ async def upgrade_kg_animation(message: types.Message, user_id, user_name, amoun
     await anim_msg.edit_text(result_text_full)
 
 async def generate_case_gif(prize_emoji, prize_emojis, case_name):
-    """Улучшенная версия"""
+    """Генерирует GIF анимацию открытия кейса (ровно под 1 строку текста)"""
     
-    width = 550
-    height = 90
-    font_size = 52
-    
-    frames = []
-    line = [random.choice(prize_emojis) for _ in range(100)]
-    line[57] = prize_emoji
-    
-    # Плавное движение с эффектом "захвата"
-    for i in range(30):
-        img = Image.new('RGB', (width, height), (20, 20, 30))  # темно-синий фон
-        draw = ImageDraw.Draw(img)
+    # ===== ЗАЩИТА ОТ ВСЕХ ОШИБОК =====
+    try:
+        # Размеры под одно сообщение Telegram
+        width = 550
+        height = 90
         
-        # Easing function для плавности
-        t = i / 29
-        # Сначала быстро, потом замедление
-        progress = 1 - (1 - t) ** 2  
-        center_pos = int(30 + progress * 40)
+        # Генерируем линию из 100 эмодзи
+        line = [random.choice(prize_emojis) for _ in range(100)]
+        line[57] = prize_emoji  # приз в центре
         
-        visible = line[center_pos-4:center_pos+5]
-        while len(visible) < 9:
-            visible.append(random.choice(prize_emojis))
+        frames = []
         
-        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+        # ===== ПОИСК ШРИФТА =====
+        font = None
+        font_size = 48
         
-        font = ImageFont.truetype("seguiemj.ttf", font_size)
+        # Список возможных шрифтов для разных систем
+        font_paths = [
+            # Linux
+            "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+            "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            # MacOS
+            "/System/Library/Fonts/Apple Color Emoji.ttc",
+            "/Library/Fonts/Arial.ttf",
+            # Windows
+            "C:/Windows/Fonts/seguiemj.ttf",
+            "C:/Windows/Fonts/arial.ttf",
+            # Fallback
+            "arial.ttf",
+            "DejaVuSans.ttf"
+        ]
         
-        bbox = draw.textbbox((0, 0), display_line, font=font)
-        x = (width - (bbox[2] - bbox[0])) // 2
-        y = (height - (bbox[3] - bbox[1])) // 2
+        for font_path in font_paths:
+            try:
+                if os.path.exists(font_path):
+                    font = ImageFont.truetype(font_path, font_size)
+                    print(f"✅ Шрифт загружен: {font_path}")
+                    break
+            except:
+                continue
         
-        # Золотая обводка для эпичности
-        for dx, dy in [(-2,-2), (-2,2), (2,-2), (2,2)]:
-            draw.text((x+dx, y+dy), display_line, font=font, fill=(200, 150, 0))
-        draw.text((x, y), display_line, font=font, fill=(255, 255, 255))
+        # Если ни один шрифт не нашелся - используем дефолтный
+        if font is None:
+            try:
+                font = ImageFont.load_default()
+                print("⚠️ Используется дефолтный шрифт")
+            except:
+                print("❌ Нет даже дефолтного шрифта!")
+                return None
         
-        frames.append(np.array(img))
-    
-    gif_buffer = io.BytesIO()
-    imageio.mimsave(
-        gif_buffer, frames, format='GIF',
-        duration=0.18,  # 5.4 секунды
-        loop=1,
-        quantizer='nq'
-    )
-    gif_buffer.seek(0)
-    return gif_buffer
+        # Создаем 30 кадров для 6-секундной анимации
+        for i in range(30):
+            try:
+                # Создаем изображение с черным фоном (RGB, не RGBA!)
+                img = Image.new('RGB', (width, height), (0, 0, 0))
+                draw = ImageDraw.Draw(img)
+                
+                # Эффект "кручения" - окно движется туда-сюда
+                progress = i / 29  # от 0 до 1
+                center_pos = int(40 + 30 * math.sin(progress * math.pi))
+                
+                # Берем 9 эмодзи с центром в center_pos
+                start = max(0, center_pos - 4)
+                end = min(100, center_pos + 5)
+                visible = list(line[start:end])  # Преобразуем в список
+                
+                # Добиваем до 9 если надо
+                while len(visible) < 9:
+                    if start > 0:
+                        visible.insert(0, random.choice(prize_emojis))
+                    else:
+                        visible.append(random.choice(prize_emojis))
+                
+                # Формируем строку с палками
+                display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+                
+                # Центрируем текст
+                try:
+                    bbox = draw.textbbox((0, 0), display_line, font=font)
+                    text_width = bbox[2] - bbox[0]
+                    text_height = bbox[3] - bbox[1]
+                except:
+                    # Если textbbox не работает, используем приблизительные значения
+                    text_width = len(display_line) * 30
+                    text_height = 40
+                
+                x = (width - text_width) // 2
+                y = (height - text_height) // 2
+                
+                # Рисуем текст с обводкой
+                try:
+                    # Черная обводка
+                    for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1)]:
+                        draw.text((x+dx, y+dy), display_line, font=font, fill=(0, 0, 0))
+                    # Белый текст
+                    draw.text((x, y), display_line, font=font, fill=(255, 255, 255))
+                except:
+                    # Если обводка не работает, рисуем просто текст
+                    draw.text((x, y), display_line, font=font, fill=(255, 255, 255))
+                
+                # Конвертируем в numpy array
+                frame = np.array(img)
+                frames.append(frame)
+                
+            except Exception as e:
+                print(f"❌ Ошибка при создании кадра {i}: {e}")
+                # Добавляем черный кадр вместо сломанного
+                frames.append(np.zeros((height, width, 3), dtype=np.uint8))
+        
+        if not frames:
+            print("❌ Не создано ни одного кадра!")
+            return None
+        
+        # Сохраняем в GIF с одним циклом
+        gif_buffer = io.BytesIO()
+        try:
+            imageio.mimsave(
+                gif_buffer, 
+                frames, 
+                format='GIF',
+                duration=0.2,  # 0.2 сек * 30 кадров = 6 секунд
+                loop=1,  # Один цикл и остановка
+                quantizer='nq'  # Более качественная цветопередача
+            )
+        except Exception as e:
+            print(f"❌ Ошибка при сохранении GIF: {e}")
+            # Пробуем с другими настройками
+            try:
+                gif_buffer = io.BytesIO()
+                imageio.mimsave(
+                    gif_buffer, 
+                    frames, 
+                    format='GIF',
+                    duration=0.2,
+                    loop=1
+                )
+            except Exception as e:
+                print(f"❌ GIF не создался даже с базовыми настройками: {e}")
+                return None
+        
+        gif_buffer.seek(0)
+        print(f"✅ GIF создан успешно! Размер: {len(gif_buffer.getvalue())} байт")
+        return gif_buffer
+        
+    except Exception as e:
+        print(f"❌ КРИТИЧЕСКАЯ ОШИБКА В GENERATE_CASE_GIF: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
     
 async def duel_animation(message: types.Message, challenger_name, opponent_name):
     duel_emojis = ["⬆️", "⬇️", "⚔️"]
