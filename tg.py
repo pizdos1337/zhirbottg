@@ -2159,7 +2159,7 @@ async def process_case_open(callback: CallbackQuery):
         await asyncio.sleep(0.5)  # 20 кадров * 0.5 = 10 секунд
     
     # Показываем результат
-    visible = line[52:61]
+    visible = line[53:62]
     display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
     
     try:
@@ -2244,7 +2244,7 @@ async def case_animation(message, chat_id, user_id, user_name, case_id, prize, s
     
     if skip:
         # Пропускаем анимацию - сразу показываем результат
-        visible = line[52:61]
+        visible = line[53:62]
         display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
         
         result_embed = f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**"
