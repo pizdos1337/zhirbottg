@@ -1600,7 +1600,7 @@ async def generate_case_gif(prize_emoji, prize_emojis, case_name):
         
         # ===== ПОИСК ШРИФТА =====
         font = None
-        font_size = 48
+        font_size = 80
         
         # Список возможных шрифтов для разных систем
         font_paths = [
