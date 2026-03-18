@@ -1590,7 +1590,7 @@ async def generate_case_gif(prize_emoji, prize_emojis, case_name):
         # ===== УВЕЛИЧИВАЕМ РАЗМЕРЫ =====
         width = 800
         height = 150
-        font_size = 80  # Эмодзи будут огромные!
+        font_size = 150  # Эмодзи будут огромные!
         
         # Генерируем линию из 100 эмодзи
         line = [random.choice(prize_emojis) for _ in range(100)]
