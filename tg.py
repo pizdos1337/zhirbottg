@@ -25,20 +25,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-# Для работы с изображениями и GIF
-from PIL import Image, ImageDraw, ImageFont
-import imageio
-import io
-import math
-import numpy as np
-import os
 
 # ===== НАСТРОЙКИ =====
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 PREFIX = "/"
 DB_FOLDER = "/app/data/telegram_databases"
 COOLDOWN_HOURS = 1
-TESTER_IDS = [1776742823]
+TESTER_IDS = [1776742823]  # ← ТВОЙ ID
 
 # Настройки вероятностей
 BASE_MINUS_CHANCE = 0.2
@@ -1422,9 +1415,7 @@ async def upgrade_animation(message: types.Message, user_id, user_name, source_i
     
     upgrade_emojis = ["🟥", "🟩"]
     
-    line = []
-    for i in range(100):
-        line.append(random.choice(upgrade_emojis))
+    line = [random.choice(upgrade_emojis) for _ in range(100)]
     
     roll = random.random()
     success = roll < target_item['chance']
@@ -1432,11 +1423,9 @@ async def upgrade_animation(message: types.Message, user_id, user_name, source_i
     if success:
         result_emoji = "🟩"
         result_text = f"✅ **УСПЕХ!** ✅"
-        result_color = "🟢"
     else:
         result_emoji = "🟥"
         result_text = f"❌ **НЕУДАЧА!** ❌"
-        result_color = "🔴"
     
     line[57] = result_emoji
     
@@ -1453,6 +1442,8 @@ async def upgrade_animation(message: types.Message, user_id, user_name, source_i
         (16, 56), (17, 57), (18, 57), (19, 57), (20, 57)
     ]
     
+    last_text = None
+    
     for frame_num, center_pos in animation_frames:
         visible = line[center_pos-4:center_pos+5]
         display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
@@ -1462,8 +1453,25 @@ async def upgrade_animation(message: types.Message, user_id, user_name, source_i
         frame_text += f"**{display_line}**\n\n"
         frame_text += f"Шанс: **{target_item['chance']*100:.1f}%**"
         
-        await anim_msg.edit_text(frame_text)
+        if frame_text != last_text:
+            try:
+                await anim_msg.edit_text(frame_text)
+                last_text = frame_text
+            except:
+                pass
+        
         await asyncio.sleep(0.5)
+    
+    # Показываем результат
+    visible = line[53:62]
+    display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+    
+    try:
+        await anim_msg.edit_text(f"**{display_line}**\n\n{result_text}")
+    except:
+        pass
+    
+    await asyncio.sleep(1.5)
     
     if success:
         items_dict[source_item] -= 1
@@ -1485,8 +1493,7 @@ async def upgrade_animation(message: types.Message, user_id, user_name, source_i
     
     update_user_data(chat_id, user_id, item_counts=save_user_items(items_dict))
     
-    result_text_full = f"**{display_line}**\n\n{result_text}\n\n{result_description}\n\nШанс был: {target_item['chance']*100:.1f}%"
-    await anim_msg.edit_text(result_text_full)
+    await anim_msg.reply(result_description)
 
 async def upgrade_kg_animation(message: types.Message, user_id, user_name, amount, target_item):
     chat_id = message.chat.id
@@ -1495,9 +1502,7 @@ async def upgrade_kg_animation(message: types.Message, user_id, user_name, amoun
     
     upgrade_emojis = ["🟥", "🟩"]
     
-    line = []
-    for i in range(100):
-        line.append(random.choice(upgrade_emojis))
+    line = [random.choice(upgrade_emojis) for _ in range(100)]
     
     roll = random.random()
     success = roll < target_item['chance']
@@ -1505,11 +1510,9 @@ async def upgrade_kg_animation(message: types.Message, user_id, user_name, amoun
     if success:
         result_emoji = "🟩"
         result_text = f"✅ **УСПЕХ!** ✅"
-        result_color = "🟢"
     else:
         result_emoji = "🟥"
         result_text = f"❌ **НЕУДАЧА!** ❌"
-        result_color = "🔴"
     
     line[57] = result_emoji
     
@@ -1526,6 +1529,8 @@ async def upgrade_kg_animation(message: types.Message, user_id, user_name, amoun
         (16, 56), (17, 57), (18, 57), (19, 57), (20, 57)
     ]
     
+    last_text = None
+    
     for frame_num, center_pos in animation_frames:
         visible = line[center_pos-4:center_pos+5]
         display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
@@ -1535,8 +1540,25 @@ async def upgrade_kg_animation(message: types.Message, user_id, user_name, amoun
         frame_text += f"**{display_line}**\n\n"
         frame_text += f"Шанс: **{target_item['chance']*100:.1f}%**"
         
-        await anim_msg.edit_text(frame_text)
+        if frame_text != last_text:
+            try:
+                await anim_msg.edit_text(frame_text)
+                last_text = frame_text
+            except:
+                pass
+        
         await asyncio.sleep(0.5)
+    
+    # Показываем результат
+    visible = line[53:62]
+    display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+    
+    try:
+        await anim_msg.edit_text(f"**{display_line}**\n\n{result_text}")
+    except:
+        pass
+    
+    await asyncio.sleep(1.5)
     
     new_number = data['current_number']
     
@@ -1549,9 +1571,7 @@ async def upgrade_kg_animation(message: types.Message, user_id, user_name, amoun
             update_user_data(
                 chat_id, user_id,
                 number=new_number,
-                cases_dict=cases_dict,
-                last_command=None,
-                last_command_use_time=None
+                cases_dict=cases_dict
             )
             result_description = f"✅ **Поздравляем!**\n\n"
             result_description += f"{amount} кг → {target_item['emoji']} **{target_item['name']}**\n\n"
@@ -1562,130 +1582,23 @@ async def upgrade_kg_animation(message: types.Message, user_id, user_name, amoun
             update_user_data(
                 chat_id, user_id,
                 number=new_number,
-                item_counts=save_user_items(items_dict),
-                last_command=None,
-                last_command_use_time=None
+                item_counts=save_user_items(items_dict)
             )
             result_description = f"✅ **Поздравляем!**\n\n"
             result_description += f"{amount} кг → {target_item['emoji']} **{target_item['name']}**\n\n"
             result_description += f"Предмет успешно получен! Потрачено: {amount} кг"
     else:
         new_number = data['current_number'] - amount
-        update_user_data(
-            chat_id, user_id,
-            number=new_number,
-            last_command=None,
-            last_command_use_time=None
-        )
+        update_user_data(chat_id, user_id, number=new_number)
         result_description = f"❌ **Неудача!**\n\n"
         result_description += f"{amount} кг сгорели в процессе улучшения!"
     
-    result_text_full = f"**{display_line}**\n\n{result_text}\n\n{result_description}\n\nШанс был: {target_item['chance']*100:.1f}%"
-    await anim_msg.edit_text(result_text_full)
+    await anim_msg.reply(result_description)
 
-async def generate_case_gif(prize_emoji, prize_emojis, case_name):
-    """Генерирует GIF анимацию открытия кейса"""
-    
-    try:
-        # ===== УВЕЛИЧИВАЕМ РАЗМЕРЫ =====
-        width = 800
-        height = 150
-        font_size = 150  # Эмодзи будут огромные!
-        
-        # Генерируем линию из 100 эмодзи
-        line = [random.choice(prize_emojis) for _ in range(100)]
-        line[57] = prize_emoji
-        
-        frames = []
-        
-        # ===== ТОЛЬКО ШРИФТЫ С ЭМОДЗИ =====
-        font = None
-        font_paths = [
-            "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",  # Linux
-            "/System/Library/Fonts/Apple Color Emoji.ttc",        # MacOS
-            "C:/Windows/Fonts/seguiemj.ttf",                      # Windows
-        ]
-        
-        for font_path in font_paths:
-            if os.path.exists(font_path):
-                try:
-                    font = ImageFont.truetype(font_path, font_size)
-                    print(f"✅ Шрифт с эмодзи загружен: {font_path}")
-                    break
-                except:
-                    continue
-        
-        if font is None:
-            print("❌ НЕТ ШРИФТА С ЭМОДЗИ!")
-            # Пробуем найти хоть что-то
-            try:
-                font = ImageFont.truetype("DejaVuSans.ttf", font_size)
-            except:
-                font = ImageFont.load_default()
-        
-        # Создаем кадры
-        for i in range(30):
-            # Белый фон для контраста
-            img = Image.new('RGB', (width, height), (255, 255, 255))
-            draw = ImageDraw.Draw(img)
-            
-            progress = i / 29
-            center_pos = int(40 + 30 * math.sin(progress * math.pi))
-            
-            start = max(0, center_pos - 4)
-            end = min(100, center_pos + 5)
-            visible = list(line[start:end])
-            
-            while len(visible) < 9:
-                if start > 0:
-                    visible.insert(0, random.choice(prize_emojis))
-                else:
-                    visible.append(random.choice(prize_emojis))
-            
-            display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-            
-            # Рисуем текст (без обводки, просто черным по белому)
-            try:
-                # Используем textbbox если доступно
-                bbox = draw.textbbox((0, 0), display_line, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-            except:
-                # Если нет, используем приближение
-                text_width = len(display_line) * font_size
-                text_height = font_size
-            
-            x = (width - text_width) // 2
-            y = (height - text_height) // 2
-            
-            # Рисуем текст черным цветом
-            draw.text((x, y), display_line, font=font, fill=(0, 0, 0))
-            
-            frames.append(np.array(img))
-        
-        # Сохраняем GIF
-        gif_buffer = io.BytesIO()
-        imageio.mimsave(
-            gif_buffer, frames, format='GIF',
-            duration=0.2, loop=1, quantizer='nq'
-        )
-        gif_buffer.seek(0)
-        
-        print(f"✅ GIF создан: {len(gif_buffer.getvalue())} байт")
-        return gif_buffer
-        
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
-        
 async def duel_animation(message: types.Message, challenger_name, opponent_name):
     duel_emojis = ["⬆️", "⬇️", "⚔️"]
     
-    line = []
-    for i in range(100):
-        line.append(random.choice(duel_emojis))
+    line = [random.choice(duel_emojis) for _ in range(100)]
     
     result = random.randint(0, 2)
     
@@ -1718,16 +1631,32 @@ async def duel_animation(message: types.Message, challenger_name, opponent_name)
     c_name = c_name.ljust(max_len)
     o_name = o_name.ljust(max_len)
     
+    last_text = None
+    
     for frame_num, center_pos in animation_frames:
         visible = line[center_pos-4:center_pos+5]
         display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
         
         frame_text = f"**{c_name}**\n**{display_line}**\n**{o_name}**"
-        await anim_msg.edit_text(frame_text)
+        
+        if frame_text != last_text:
+            try:
+                await anim_msg.edit_text(frame_text)
+                last_text = frame_text
+            except:
+                pass
+        
         await asyncio.sleep(0.5)
     
-    final_text = f"**{c_name}**\n**{display_line}**\n**{o_name}**\n\n{result_text}"
-    await anim_msg.edit_text(final_text)
+    # Показываем результат
+    visible = line[53:62]
+    display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+    
+    try:
+        await anim_msg.edit_text(f"**{c_name}**\n**{display_line}**\n**{o_name}**\n\n{result_text}")
+    except:
+        pass
+    
     await asyncio.sleep(1.5)
     
     return result
@@ -1876,7 +1805,6 @@ async def cmd_fat_case(message: types.Message):
     
     data = get_user_data(chat_id, user_id, user_name)
     
-    # Удаляем старый активный кейс если есть
     if data.get('active_case_message_id'):
         try:
             await bot.delete_message(chat_id, int(data['active_case_message_id']))
@@ -1885,7 +1813,6 @@ async def cmd_fat_case(message: types.Message):
     
     items_dict = get_user_items(data['item_counts'])
     
-    # Расчёт кулдауна с учётом апельсинов
     actual_case_cooldown = CASE_COOLDOWN_HOURS
     if data['legendary_burger'] >= 0 and data['legendary_burger'] < len(BURGER_RANKS):
         actual_case_cooldown = BURGER_RANKS[data['legendary_burger']]["case_cooldown"]
@@ -1923,7 +1850,6 @@ async def cmd_fat_case(message: types.Message):
         )
         return
     
-    # Создаём клавиатуру с кнопками
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -1949,7 +1875,7 @@ async def cmd_fat_case(message: types.Message):
         active_case_message_id=str(case_msg.message_id),
         last_case_type=case_to_open
     )
-    
+
 @dp.callback_query(lambda c: c.data and c.data.startswith('skip_case_'))
 async def process_case_skip(callback: CallbackQuery):
     register_chat(callback.message.chat.id)
@@ -1963,7 +1889,6 @@ async def process_case_skip(callback: CallbackQuery):
     
     data = get_user_data(chat_id, user_id, user_name)
     
-    # ===== ИСПРАВЛЕНО: проверяем наличие кейса =====
     if case_to_open != "daily":
         cases_dict = data.get('cases_dict', {}).copy()
         if cases_dict.get(case_to_open, 0) <= 0:
@@ -1971,11 +1896,9 @@ async def process_case_skip(callback: CallbackQuery):
             await callback.message.delete()
             return
         
-        # СПИСЫВАЕМ КЕЙС СРАЗУ
         cases_dict[case_to_open] -= 1
         update_user_data(chat_id, user_id, cases_dict=cases_dict)
     else:
-        # Проверка ежедневного кейса
         actual_case_cooldown = CASE_COOLDOWN_HOURS
         if data['legendary_burger'] >= 0:
             actual_case_cooldown = BURGER_RANKS[data['legendary_burger']]["case_cooldown"]
@@ -2014,13 +1937,11 @@ async def process_case_open(callback: CallbackQuery):
         await callback.answer("Это не ваш кейс!", show_alert=True)
         return
     
-    # Удаляем клавиатуру сразу
     try:
         await callback.message.delete_reply_markup()
     except:
         pass
     
-    # ===== СПИСЫВАЕМ КЕЙС =====
     if case_to_open == "daily":
         actual_case_cooldown = CASE_COOLDOWN_HOURS
         if data['legendary_burger'] >= 0 and data['legendary_burger'] < len(BURGER_RANKS):
@@ -2055,18 +1976,13 @@ async def process_case_open(callback: CallbackQuery):
     
     await callback.answer()
     
-    # Получаем приз
     prize = open_case(case_to_open, data['legendary_burger'])
     case = CASES[case_to_open]
     
-    # Если пропуск анимации - сразу результат
     if is_skip:
         await show_case_result(callback.message, chat_id, user_id, user_name, prize, case)
         return
     
-    # ===== ТЕКСТОВАЯ АНИМАЦИЯ (КАК РАНЬШЕ) =====
-    
-    # Определяем эмодзи для анимации
     prize_emojis = []
     for p in case["prizes"]:
         if "emoji" in p:
@@ -2099,7 +2015,6 @@ async def process_case_open(callback: CallbackQuery):
         if emoji not in prize_emojis:
             prize_emojis.append(emoji)
     
-    # Определяем эмодзи приза
     if "emoji" in prize:
         prize_emoji = prize["emoji"]
     elif prize["value"] == "autoburger":
@@ -2126,14 +2041,11 @@ async def process_case_open(callback: CallbackQuery):
     else:
         prize_emoji = "🎁"
     
-    # Генерируем линию и СРАЗУ ставим приз
     line = [random.choice(prize_emojis) for _ in range(100)]
     line[57] = prize_emoji
     
-    # Анимация
     anim_msg = await callback.message.reply(f"🎰 **{case['name']}** 🎰")
     
-    # Используем проверенные кадры
     animation_frames = [
         (1, 5), (2, 10), (3, 15), (4, 20), (5, 25),
         (6, 30), (7, 35), (8, 39), (9, 43), (10, 47),
@@ -2148,7 +2060,6 @@ async def process_case_open(callback: CallbackQuery):
         display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
         current_text = f"**{display_line}**"
         
-        # Меняем только если текст новый
         if current_text != last_text:
             try:
                 await anim_msg.edit_text(current_text)
@@ -2156,9 +2067,8 @@ async def process_case_open(callback: CallbackQuery):
             except Exception as e:
                 print(f"Ошибка анимации: {e}")
         
-        await asyncio.sleep(0.5)  # 20 кадров * 0.5 = 10 секунд
+        await asyncio.sleep(0.5)
     
-    # Показываем результат
     visible = line[53:62]
     display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
     
@@ -2169,146 +2079,9 @@ async def process_case_open(callback: CallbackQuery):
     
     await asyncio.sleep(1.5)
     
-    # Показываем финальный результат
     await show_case_result(anim_msg, chat_id, user_id, user_name, prize, case)
-    
-async def case_animation(message, chat_id, user_id, user_name, case_id, prize, skip=False):
-    """Анимация открытия кейса с возможностью пропуска"""
-    
-    case = CASES[case_id]
-    data = get_user_data(chat_id, user_id, user_name)
-    
-    # Определяем эмодзи для анимации
-    prize_emojis = []
-    for p in case["prizes"]:
-        if "emoji" in p:
-            emoji = p["emoji"]
-        else:
-            if p["value"] == "autoburger":
-                emoji = "🍔"
-            elif p["value"] == "rotten_leg":
-                emoji = "💀"
-            elif p["value"] == "water":
-                emoji = "💧"
-            elif isinstance(p["value"], int):
-                if p["value"] < 0:
-                    emoji = "📉"
-                elif p["value"] == 0:
-                    emoji = "🔄"
-                elif p["value"] < 50:
-                    emoji = "📈"
-                elif p["value"] < 100:
-                    emoji = "⬆️"
-                elif p["value"] < 500:
-                    emoji = "🚀"
-                elif p["value"] < 1000:
-                    emoji = "⭐"
-                else:
-                    emoji = "💥"
-            else:
-                emoji = "🎁"
-        
-        if emoji not in prize_emojis:
-            prize_emojis.append(emoji)
-    
-    # Определяем эмодзи приза
-    if "emoji" in prize:
-        prize_emoji = prize["emoji"]
-    elif prize["value"] == "autoburger":
-        prize_emoji = "🍔"
-    elif prize["value"] == "rotten_leg":
-        prize_emoji = "💀"
-    elif prize["value"] == "water":
-        prize_emoji = "💧"
-    elif isinstance(prize["value"], int):
-        if prize["value"] < 0:
-            prize_emoji = "📉"
-        elif prize["value"] == 0:
-            prize_emoji = "🔄"
-        elif prize["value"] < 50:
-            prize_emoji = "📈"
-        elif prize["value"] < 100:
-            prize_emoji = "⬆️"
-        elif prize["value"] < 500:
-            prize_emoji = "🚀"
-        elif prize["value"] < 1000:
-            prize_emoji = "⭐"
-        else:
-            prize_emoji = "💥"
-    else:
-        prize_emoji = "🎁"
-    
-    # Генерируем линию
-    line = [random.choice(prize_emojis) for _ in range(100)]
-    line[57] = prize_emoji
-    
-    if skip:
-        # Пропускаем анимацию - сразу показываем результат
-        visible = line[53:62]
-        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-        
-        result_embed = f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**"
-        
-        try:
-            await message.edit_text(result_embed)
-        except:
-            pass
-        
-        await asyncio.sleep(1)
-        
-        # Показываем финальный результат
-        await show_case_result(message, chat_id, user_id, user_name, prize, case)
-        return
-    
-    # Полная анимация
-    anim_text = f"🎰 **{case['name']}** 🎰"
-    try:
-        await message.edit_text(anim_text)
-    except:
-        anim_msg = await message.reply(anim_text)
-        message = anim_msg
-    
-    animation_frames = [
-        (1, 5), (2, 10), (3, 15), (4, 20), (5, 25),
-        (6, 30), (7, 35), (8, 39), (9, 43), (10, 47),
-        (11, 50), (12, 52), (13, 54), (14, 55), (15, 56),
-        (16, 56), (17, 57), (18, 57), (19, 57), (20, 57)
-    ]
-    
-    last_text = None
-    
-    for frame_num, center_pos in animation_frames:
-        visible = line[center_pos-4:center_pos+5]
-        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-        current_text = f"**{display_line}**"
-        
-        if current_text != last_text:
-            try:
-                await message.edit_text(current_text)
-                last_text = current_text
-            except:
-                pass
-        
-        await asyncio.sleep(0.3)
-    
-    # Показываем результат анимации
-    visible = line[52:61]
-    display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-    result_embed = f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**"
-    
-    try:
-        await message.edit_text(result_embed)
-    except:
-        pass
-    
-    await asyncio.sleep(1)
-    
-    # Показываем финальный результат
-    await show_case_result(message, chat_id, user_id, user_name, prize, case)
 
 async def show_case_result(message, chat_id, user_id, user_name, prize, case):
-    """Показывает финальный результат открытия кейса"""
-    
     data = get_user_data(chat_id, user_id, user_name)
     
     items_dict = get_user_items(data['item_counts'])
@@ -2319,7 +2092,6 @@ async def show_case_result(message, chat_id, user_id, user_name, prize, case):
     
     has_water = items_dict.get("Стакан воды", 0) > 0
     
-    # Обрабатываем приз
     if prize_value == "autoburger":
         new_autoburger_count += 1
         interval = get_autoburger_interval(new_autoburger_count)
@@ -2345,7 +2117,6 @@ async def show_case_result(message, chat_id, user_id, user_name, prize, case):
         new_number = data['current_number'] + prize_value
         result_display = f"🎉 **{prize_value:+d} кг**"
     
-    # Обновляем данные
     update_data = {
         'number': new_number,
         'autoburger_count': new_autoburger_count,
@@ -2362,7 +2133,6 @@ async def show_case_result(message, chat_id, user_id, user_name, prize, case):
     
     rank_name, rank_emoji = get_rank(new_number)
     
-    # Формируем финальное сообщение
     final_text = f"{case['emoji']} Открытие {case['name']}\n\n"
     
     if prize_value == "autoburger":
@@ -2381,15 +2151,13 @@ async def show_case_result(message, chat_id, user_id, user_name, prize, case):
         final_text += f"🍖 Новый вес: {new_number}kg\n"
         final_text += f"🎖️ Звание: {rank_emoji} {rank_name}"
     
-    # Отправляем финальное сообщение
     try:
         await message.reply(final_text)
     except:
         await message.reply("✅ Кейс открыт!")
-        
+
 async def cmd_fat_case_chances(message: types.Message):
     register_chat(message.chat.id)
-    """Шансы в кейсе"""
     embed_text = "📊 **ШАНСЫ В КЕЙСЕ** 📊\n\nВероятность выпадения каждого приза в ежедневном кейсе:\n\n"
     
     sorted_prizes = sorted(CASE_PRIZES, key=lambda x: x['chance'] if x['chance'] > 0 else 999, reverse=True)
@@ -2420,7 +2188,6 @@ async def cmd_fat_case_chances(message: types.Message):
 
 async def cmd_fat_leaderboard(message: types.Message):
     register_chat(message.chat.id)
-    """Таблица лидеров"""
     chat_id = message.chat.id
     chat_name = message.chat.title or "этом чате"
     users = get_all_users_sorted(chat_id)
@@ -2501,7 +2268,6 @@ async def cmd_fat_leaderboard(message: types.Message):
 
 async def cmd_fat_stats(message: types.Message):
     register_chat(message.chat.id)
-    """Статистика автобургеров"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     user_name = message.from_user.full_name
@@ -2548,7 +2314,6 @@ async def cmd_fat_stats(message: types.Message):
 
 async def cmd_fat_info(message: types.Message):
     register_chat(message.chat.id)
-    """Информация о пользователе"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     user_name = message.from_user.full_name
@@ -2565,7 +2330,6 @@ async def cmd_fat_info(message: types.Message):
     
     items_dict = get_user_items(data['item_counts'])
     
-    # Расчёт пассивного дохода
     total_passive_income = 0
     income_details = []
     
@@ -2656,7 +2420,6 @@ async def cmd_fat_info(message: types.Message):
 
 async def cmd_show_ranks(message: types.Message):
     register_chat(message.chat.id)
-    """Список званий"""
     response = "🎖️ **Система званий**\n\n"
     
     for rank in RANKS:
@@ -2670,7 +2433,6 @@ async def cmd_show_ranks(message: types.Message):
 
 async def cmd_cooldown_info(message: types.Message):
     register_chat(message.chat.id)
-    """Информация о кулдаунах"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     user_name = message.from_user.full_name
@@ -2726,7 +2488,6 @@ async def cmd_cooldown_info(message: types.Message):
 
 async def cmd_show_inventory(message: types.Message):
     register_chat(message.chat.id)
-    """Показывает инвентарь"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     user_name = message.from_user.full_name
@@ -2799,7 +2560,6 @@ async def cmd_show_inventory(message: types.Message):
 
 async def cmd_shop(message: types.Message):
     register_chat(message.chat.id)
-    """Магазин предметов"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     user_name = message.from_user.full_name
@@ -2864,9 +2624,6 @@ async def cmd_shop(message: types.Message):
     await message.reply(response)
 
 async def cmd_reset_all_cooldowns(message: types.Message):
-    """Сбрасывает все кулдауны у всех пользователей (только для тебя)"""
-    
-    # Проверяем, что это ты
     if message.from_user.id not in TESTER_IDS:
         await message.reply("❌ Эта команда только для создателя!")
         return
@@ -2881,7 +2638,6 @@ async def cmd_reset_all_cooldowns(message: types.Message):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    # Сбрасываем все кулдауны
     cursor.execute('''
         UPDATE user_fat SET 
             fat_cooldown_time = NULL,
@@ -2899,15 +2655,13 @@ async def cmd_reset_all_cooldowns(message: types.Message):
     conn.close()
     
     await message.reply(f"✅ Сброшены все кулдауны для {affected} пользователей!")
-    
+
 async def cmd_buy(message: types.Message):
     register_chat(message.chat.id)
-    """Покупка предметов"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     user_name = message.from_user.full_name
     
-    # ИСПРАВЛЕНО: парсим аргументы вручную
     if not message.text or ' ' not in message.text:
         await message.reply("❌ Использование: `/купить [номер слота] [количество]`\nПример: `/купить 1 2`")
         return
@@ -3025,12 +2779,10 @@ async def cmd_buy(message: types.Message):
 
 async def cmd_give_fat(message: types.Message):
     register_chat(message.chat.id)
-    """Передача кг другому пользователю"""
     chat_id = message.chat.id
     giver_id = message.from_user.id
     giver_name = message.from_user.full_name
     
-    # ИСПРАВЛЕНО: парсим аргументы вручную
     if not message.text or ' ' not in message.text:
         await message.reply("❌ Использование: `/датьжир @username [количество]`\nПример: `/датьжир @user 100`")
         return
@@ -3102,7 +2854,6 @@ async def cmd_give_fat(message: types.Message):
 
 async def cmd_ascension(message: types.Message):
     register_chat(message.chat.id)
-    """Возвышение - получение легендарного бургера"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     user_name = message.from_user.full_name
@@ -3175,14 +2926,12 @@ async def cmd_ascension(message: types.Message):
 
 async def cmd_upgrade(message: types.Message):
     register_chat(message.chat.id)
-    """Улучшение предметов с защитой от дюпа"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     user_name = message.from_user.full_name
     
     data = get_user_data(chat_id, user_id, user_name)
     
-    # ===== ИСПРАВЛЕНО: Проверка активного апгрейда =====
     if data.get('upgrade_active', 0) == 1:
         await message.reply("⚠️ У вас уже есть активный апгрейд! Дождитесь его завершения.")
         return
@@ -3206,10 +2955,9 @@ async def cmd_upgrade(message: types.Message):
         await message.reply("❌ У вас нет предметов для улучшения!")
         return
     
-    # ИСПРАВЛЕНО: парсим аргументы
     parts = message.text.split() if message.text else []
     
-    if len(parts) < 2:  # Нет аргументов
+    if len(parts) < 2:
         response = f"🔧 **АПГРЕЙД ПРЕДМЕТОВ** 🔧\n\n"
         response += f"{user_name}, выберите предмет для улучшения:\n"
         response += f"Используйте `/апгрейд [номер]`\n\n"
@@ -3244,7 +2992,6 @@ async def cmd_upgrade(message: types.Message):
         await message.reply(f"❌ Для **{selected_item['emoji']} {selected_item['name']}** нет доступных улучшений!")
         return
     
-    # ===== ИСПРАВЛЕНО: Помечаем апгрейд как активный =====
     update_user_data(
         chat_id, user_id,
         last_command="upgrade_select",
@@ -3278,19 +3025,16 @@ async def cmd_upgrade(message: types.Message):
 
 async def cmd_upgrade_kg(message: types.Message):
     register_chat(message.chat.id)
-    """Улучшение кг в предметы с защитой от дюпа"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     user_name = message.from_user.full_name
     
     data = get_user_data(chat_id, user_id, user_name)
     
-    # ===== ИСПРАВЛЕНО: Проверка активного апгрейда =====
     if data.get('upgrade_active', 0) == 1:
         await message.reply("⚠️ У вас уже есть активный апгрейд! Дождитесь его завершения.")
         return
     
-    # ИСПРАВЛЕНО: парсим аргументы
     parts = message.text.split() if message.text else []
     
     if len(parts) < 2:
@@ -3358,7 +3102,6 @@ async def cmd_upgrade_kg(message: types.Message):
     
     possible_upgrades.sort(key=lambda x: x["price"])
     
-    # ===== ИСПРАВЛЕНО: Помечаем апгрейд как активный =====
     update_user_data(
         chat_id, user_id,
         last_command="upgrade_kg_select",
@@ -3388,12 +3131,10 @@ async def cmd_upgrade_kg(message: types.Message):
 
 async def cmd_choose(message: types.Message):
     register_chat(message.chat.id)
-    """Выбор цели для апгрейда с защитой от дюпа"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     user_name = message.from_user.full_name
     
-    # ИСПРАВЛЕНО: парсим аргументы
     parts = message.text.split() if message.text else []
     
     if len(parts) < 2:
@@ -3409,7 +3150,6 @@ async def cmd_choose(message: types.Message):
     
     data = get_user_data(chat_id, user_id, user_name)
     
-    # ===== ИСПРАВЛЕНО: Проверяем активность апгрейда =====
     if data.get('upgrade_active', 0) != 1:
         await message.reply("❌ У вас нет активного апгрейда! Сначала используйте `/апгрейд` или `/апгрейдкг`.")
         return
@@ -3496,7 +3236,6 @@ async def cmd_choose(message: types.Message):
         
         target_item = possible_upgrades[item_index]
         
-        # ===== Сбрасываем флаг активности перед анимацией =====
         update_user_data(chat_id, user_id, upgrade_active=0, upgrade_data=None)
         
         await upgrade_kg_animation(message, user_id, user_name, amount, target_item)
@@ -3537,7 +3276,6 @@ async def cmd_choose(message: types.Message):
         
         target_item = possible_upgrades[upgrade_index]
         
-        # ===== Сбрасываем флаг активности перед анимацией =====
         update_user_data(chat_id, user_id, upgrade_active=0, upgrade_data=None)
         
         await upgrade_animation(message, user_id, user_name, source_item_name, target_item, items_dict[source_item_name])
@@ -3550,12 +3288,10 @@ async def cmd_choose(message: types.Message):
 # ===== ТЕСТОВЫЕ КОМАНДЫ =====
 async def cmd_give_autoburger(message: types.Message):
     register_chat(message.chat.id)
-    """Выдача автобургеров (только для тестеров)"""
     if not is_tester(message.from_user.id):
         await message.reply("❌ У вас нет прав для этой команды!")
         return
     
-    # ИСПРАВЛЕНО: ручной парсинг
     parts = message.text.split() if message.text else []
     try:
         количество = int(parts[1]) if len(parts) > 1 else 1
@@ -3604,12 +3340,10 @@ async def cmd_give_autoburger(message: types.Message):
 
 async def cmd_reset_autoburger(message: types.Message):
     register_chat(message.chat.id)
-    """Сброс автобургеров (только для тестеров)"""
     if not is_tester(message.from_user.id):
         await message.reply("❌ У вас нет прав для этой команды!")
         return
     
-    # ИСПРАВЛЕНО: ручной парсинг
     chat_id = message.chat.id
     parts = message.text.split() if message.text else []
     target_user = message.from_user
@@ -3644,12 +3378,10 @@ async def cmd_reset_autoburger(message: types.Message):
 
 async def cmd_autoburger_info(message: types.Message):
     register_chat(message.chat.id)
-    """Информация об автобургерах (только для тестеров)"""
     if not is_tester(message.from_user.id):
         await message.reply("❌ У вас нет прав для этой команды!")
         return
     
-    # ИСПРАВЛЕНО: ручной парсинг
     chat_id = message.chat.id
     parts = message.text.split() if message.text else []
     target_user = message.from_user
@@ -3712,21 +3444,17 @@ async def cmd_autoburger_info(message: types.Message):
 
 async def cmd_give_shop_item(message: types.Message):
     register_chat(message.chat.id)
-    """Выдача предмета (только для тестеров)"""
     if not is_tester(message.from_user.id):
         await message.reply("❌ У вас нет прав для этой команды!")
         return
     
-    # ИСПРАВЛЕНО: более сложный парсинг для названия с пробелами
     text = message.text
     if not text or ' ' not in text:
         await message.reply("❌ Использование: `/выдатьпредмет количество \"название предмета\"`\nПример: `/выдатьпредмет 5 Горелый бекон`")
         return
     
-    # Убираем команду из текста
     without_command = text.split(' ', 1)[1] if ' ' in text else ''
     
-    # Пытаемся найти первую часть (количество) и остальное (название)
     import re
     match = re.match(r'(\d+)\s+(.+)$', without_command)
     
@@ -3800,7 +3528,6 @@ async def cmd_give_shop_item(message: types.Message):
 
 async def cmd_reset_cooldowns(message: types.Message):
     register_chat(message.chat.id)
-    """Сброс кулдаунов (только для тестеров)"""
     if not is_tester(message.from_user.id):
         await message.reply("❌ У вас нет прав для этой команды!")
         return
@@ -3822,7 +3549,6 @@ async def cmd_reset_cooldowns(message: types.Message):
 
 async def cmd_reset_all_users(message: types.Message):
     register_chat(message.chat.id)
-    """Глобальный сброс веса (только для тестеров)"""
     if not is_tester(message.from_user.id):
         await message.reply("❌ У вас нет прав для этой команды!")
         return
@@ -3831,8 +3557,8 @@ async def cmd_reset_all_users(message: types.Message):
     
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton("✅ ДА", callback_data="reset_confirm")],
-            [InlineKeyboardButton("❌ НЕТ", callback_data="reset_cancel")]
+            [InlineKeyboardButton(text="✅ ДА", callback_data="reset_confirm")],
+            [InlineKeyboardButton(text="❌ НЕТ", callback_data="reset_cancel")]
         ]
     )
     
@@ -3877,105 +3603,12 @@ async def process_reset_confirmation(callback: CallbackQuery):
     else:
         await callback.message.edit_text("❌ База данных не найдена!")
 
-async def cmd_global_leaderboard(message: types.Message):
-    """Показывает топ чатов по общей массе жира"""
-    register_chat(message.chat.id)
-    
-    chat_stats = []
-    
-    for chat_id in active_chats:
-        try:
-            # Получаем информацию о чате
-            chat = await bot.get_chat(chat_id)
-            chat_name = chat.title or f"Чат {chat_id}"
-            
-            # Получаем статистику чата
-            stats = get_chat_stats(chat_id)
-            
-            if stats['total_users'] > 0:  # Только чаты с участниками
-                chat_stats.append({
-                    'id': chat_id,
-                    'name': chat_name[:30] + "..." if len(chat_name) > 30 else chat_name,
-                    'total_weight': stats['total_weight'],
-                    'users': stats['total_users'],
-                    'avg_weight': stats['avg_weight'],
-                    'autoburgers': stats['total_autoburgers'],
-                    'burger_counts': stats['burger_counts']
-                })
-        except Exception as e:
-            print(f"Ошибка при получении статистики чата {chat_id}: {e}")
-            continue
-    
-    if not chat_stats:
-        await message.reply("📭 Нет данных по чатам!")
-        return
-    
-    # Сортируем по общей массе
-    chat_stats.sort(key=lambda x: x['total_weight'], reverse=True)
-    
-    # Формируем ответ
-    response = "🌍 **ГЛОБАЛЬНЫЙ РЕЙТИНГ ЧАТОВ** 🌍\n\n"
-    response += "Топ чатов по общей массе жира:\n\n"
-    
-    for i, chat in enumerate(chat_stats[:15], 1):  # Топ-15 чатов
-        if i == 1:
-            place = "🥇"
-        elif i == 2:
-            place = "🥈"
-        elif i == 3:
-            place = "🥉"
-        else:
-            place = f"{i}."
-        
-        # Форматируем вес
-        if chat['total_weight'] >= 1000000:
-            weight_display = f"{chat['total_weight']/1000000:.1f}M кг"
-        elif chat['total_weight'] >= 1000:
-            weight_display = f"{chat['total_weight']/1000:.1f}K кг"
-        else:
-            weight_display = f"{chat['total_weight']} кг"
-        
-        # Считаем легендарные бургеры
-        total_burgers = sum(chat['burger_counts'])
-        burger_icons = ""
-        for idx, count in enumerate(chat['burger_counts']):
-            if count > 0:
-                burger_icons += f"{BURGER_RANKS[idx]['emoji']}{count} "
-        
-        response += f"{place} **{chat['name']}**\n"
-        response += f"   📦 **{weight_display}** | 👥 {chat['users']} уч.\n"
-        response += f"   📊 Средний вес: {chat['avg_weight']:.0f} кг\n"
-        if burger_icons:
-            response += f"   ✨ {burger_icons}\n"
-        response += "\n"
-    
-    # Общая статистика
-    total_global_weight = sum(c['total_weight'] for c in chat_stats)
-    total_global_users = sum(c['users'] for c in chat_stats)
-    total_global_chats = len(chat_stats)
-    
-    if total_global_weight >= 1000000:
-        global_display = f"{total_global_weight/1000000:.1f}M кг"
-    elif total_global_weight >= 1000:
-        global_display = f"{total_global_weight/1000:.1f}K кг"
-    else:
-        global_display = f"{total_global_weight} кг"
-    
-    response += f"📊 **ГЛОБАЛЬНАЯ СТАТИСТИКА**\n"
-    response += f"🌍 Чатов: **{total_global_chats}**\n"
-    response += f"👥 Участников: **{total_global_users}**\n"
-    response += f"⚖️ Всего массы: **{global_display}**\n"
-    
-    await message.reply(response)
-
 async def cmd_fat_reset(message: types.Message):
     register_chat(message.chat.id)
-    """Сброс веса конкретного пользователя (только для тестеров)"""
     if not is_tester(message.from_user.id):
         await message.reply("❌ У вас нет прав для этой команды!")
         return
     
-    # ИСПРАВЛЕНО: ручной парсинг
     chat_id = message.chat.id
     parts = message.text.split() if message.text else []
     target_user = message.from_user
@@ -4020,11 +3653,9 @@ class DuelState(StatesGroup):
 
 async def cmd_duel(message: types.Message):
     register_chat(message.chat.id)
-    """Вызов на дуэль"""
     chat_id = message.chat.id
     challenger = message.from_user
     
-    # ИСПРАВЛЕНО: парсим аргументы
     parts = message.text.split() if message.text else []
     
     if len(parts) < 3:
@@ -4090,7 +3721,6 @@ async def cmd_duel(message: types.Message):
         await message.reply(f"❌ У {target_user.full_name} недостаточно кг! У него: {opponent_data['current_number']}кг")
         return
     
-    # ===== ИСПРАВЛЕНО: Защита от дюпа и отслеживание времени =====
     current_time = datetime.now()
     
     keyboard = InlineKeyboardMarkup(
@@ -4165,6 +3795,11 @@ async def process_duel(callback: CallbackQuery):
             await callback.message.reply("❌ Это не ваша дуэль!")
             return
         
+        try:
+            await callback.message.delete_reply_markup()
+        except:
+            pass
+        
         chat_id = callback.message.chat.id
         
         challenger = await bot.get_chat_member(chat_id, challenger_id)
@@ -4173,9 +3808,10 @@ async def process_duel(callback: CallbackQuery):
         challenger_data = get_user_data(chat_id, challenger_id, challenger.user.full_name)
         opponent_data = get_user_data(chat_id, opponent_id, opponent.user.full_name)
         
+        # Запускаем анимацию дуэли
         result = await duel_animation(callback.message, challenger.user.full_name, opponent.user.full_name)
         
-        if result == 0:
+        if result == 0:  # Победил challenger
             winner = challenger.user
             winner_id = challenger_id
             loser = opponent.user
@@ -4188,10 +3824,10 @@ async def process_duel(callback: CallbackQuery):
             
             result_text = f"**Победитель:** {winner.full_name}\n\n"
             result_text += f"📊 **Результаты:**\n"
-            result_text += f"{winner.full_name}: {challenger_data['current_number']}кг → **{winner_new_weight}кг** (+{amount})\n"
-            result_text += f"{loser.full_name}: {opponent_data['current_number']}кг → **{loser_new_weight}кг** (-{amount})"
+            result_text += f"{winner.full_name}: {challenger_data['current_number']} → **{winner_new_weight}** (+{amount})\n"
+            result_text += f"{loser.full_name}: {opponent_data['current_number']} → **{loser_new_weight}** (-{amount})"
             
-        elif result == 1:
+        elif result == 1:  # Победил opponent
             winner = opponent.user
             winner_id = opponent_id
             loser = challenger.user
@@ -4204,14 +3840,14 @@ async def process_duel(callback: CallbackQuery):
             
             result_text = f"**Победитель:** {winner.full_name}\n\n"
             result_text += f"📊 **Результаты:**\n"
-            result_text += f"{winner.full_name}: {opponent_data['current_number']}кг → **{winner_new_weight}кг** (+{amount})\n"
-            result_text += f"{loser.full_name}: {challenger_data['current_number']}кг → **{loser_new_weight}кг** (-{amount})"
+            result_text += f"{winner.full_name}: {opponent_data['current_number']} → **{winner_new_weight}** (+{amount})\n"
+            result_text += f"{loser.full_name}: {challenger_data['current_number']} → **{loser_new_weight}** (-{amount})"
             
-        else:
+        else:  # Ничья
             result_text = f"🤝 **НИЧЬЯ!** 🤝\n\n"
             result_text += f"📊 **Результаты:**\n"
-            result_text += f"{challenger.user.full_name}: {challenger_data['current_number']}кг (без изменений)\n"
-            result_text += f"{opponent.user.full_name}: {opponent_data['current_number']}кг (без изменений)"
+            result_text += f"{challenger.user.full_name}: {challenger_data['current_number']}\n"
+            result_text += f"{opponent.user.full_name}: {opponent_data['current_number']}"
         
         update_user_data(chat_id, challenger_id, duel_active=0, duel_opponent=None, duel_amount=0, 
                          duel_message_id=None, duel_initiator=0, duel_start_time=None)
@@ -4244,7 +3880,6 @@ async def process_duel(callback: CallbackQuery):
 
 async def cmd_cancel_duel(message: types.Message):
     register_chat(message.chat.id)
-    """Отмена дуэли (только для тестеров)"""
     if not is_tester(message.from_user.id):
         await message.reply("❌ У вас нет прав для этой команды!")
         return
@@ -4279,27 +3914,22 @@ async def cmd_cancel_duel(message: types.Message):
     await message.reply(f"✅ Дуэль отменена!")
 
 async def cmd_give_item(message: types.Message):
-    """Передаёт предметы другому пользователю"""
     register_chat(message.chat.id)
     
     chat_id = message.chat.id
     giver_id = message.from_user.id
     giver_name = message.from_user.full_name
     
-    # Парсим аргументы
     text = message.text
     if not text or ' ' not in text:
         await message.reply(
             "❌ Использование: `/датьпредмет @username количество \"название предмета\"`\n"
-            "Пример: `/датьпредмет @user 5 Горелый бекон`\n"
-            "Пример: `/датьпредмет @user 1 Автобургер`"
+            "Пример: `/датьпредмет @user 5 Горелый бекон`"
         )
         return
     
-    # Убираем команду из текста
     without_command = text.split(' ', 1)[1] if ' ' in text else ''
     
-    # Парсим @username, количество и название предмета
     import re
     match = re.match(r'@(\S+)\s+(\d+)\s+(.+)$', without_command)
     
@@ -4323,7 +3953,6 @@ async def cmd_give_item(message: types.Message):
         await message.reply("❌ Количество должно быть больше 0!")
         return
     
-    # Ищем целевого пользователя в чате
     target_user = None
     try:
         chat = await bot.get_chat(chat_id)
@@ -4350,7 +3979,6 @@ async def cmd_give_item(message: types.Message):
     
     item_lower = item_name.lower()
     
-    # ===== ПРОВЕРЯЕМ КЕЙСЫ =====
     for case_id, case in CASES.items():
         if case_id != "daily" and case["name"].lower() in item_lower or case_id.lower() in item_lower:
             if not case.get("tradable", True):
@@ -4379,7 +4007,6 @@ async def cmd_give_item(message: types.Message):
             await message.reply(response)
             return
     
-    # ===== ПРОВЕРЯЕМ АВТОБУРГЕРЫ =====
     autoburger_keywords = ["автобургер", "бургер", "autoburger", "🍔"]
     is_autoburger = any(word in item_lower for word in autoburger_keywords)
     
@@ -4415,7 +4042,6 @@ async def cmd_give_item(message: types.Message):
         await message.reply(response)
         return
     
-    # ===== ПРОВЕРЯЕМ ОБЫЧНЫЕ ПРЕДМЕТЫ =====
     giver_items = get_user_items(giver_data['item_counts'])
     target_items = get_user_items(target_data['item_counts'])
     
@@ -4482,7 +4108,6 @@ async def cmd_give_item(message: types.Message):
 
 # ===== ОБНОВЛЁННАЯ ФУНКЦИЯ АВТОБУРГЕРА =====
 async def apply_autoburger(chat_id, user_id, user_name):
-    """Применяет эффект автобургера без уведомлений в ЛС"""
     try:
         data = get_user_data(chat_id, user_id, user_name)
         
@@ -4513,7 +4138,6 @@ async def apply_autoburger(chat_id, user_id, user_name):
 
 # ===== ОБНОВЛЁННАЯ ФУНКЦИЯ СНАТЧЕРА =====
 async def apply_snatcher_effect(chat_id, user_id, user_name):
-    """Применяет эффект Снатчера без уведомлений в ЛС"""
     try:
         data = get_user_data(chat_id, user_id, user_name)
         items_dict = get_user_items(data['item_counts'])
@@ -4575,7 +4199,6 @@ async def apply_snatcher_effect(chat_id, user_id, user_name):
 
 # ===== ФУНКЦИИ ДЛЯ ФОНОВЫХ ЗАДАЧ =====
 async def autoburger_loop():
-    """Цикл автобургеров - проверка каждую минуту"""
     await asyncio.sleep(10)
     print("🚀 Автобургер цикл запущен")
     
@@ -4617,7 +4240,6 @@ async def autoburger_loop():
         await asyncio.sleep(60)
 
 async def passive_income_loop():
-    """Начисляет пассивный доход раз в 24 часа"""
     await asyncio.sleep(10)
     print("💰 Пассивный доход цикл запущен")
     
@@ -4695,7 +4317,6 @@ async def passive_income_loop():
         await asyncio.sleep(24 * 60 * 60)
 
 async def snatcher_loop():
-    """Цикл проверки Снатчеров каждые 30 минут"""
     await asyncio.sleep(10)
     print("👾 Снатчер цикл запущен")
     
@@ -4741,7 +4362,6 @@ async def snatcher_loop():
         await asyncio.sleep(1800)
 
 async def hourly_effects_loop():
-    """Применяет эффекты предметов, которые работают каждый час"""
     await asyncio.sleep(10)
     print("💊 Почасовые эффекты цикл запущен")
     
@@ -4827,7 +4447,6 @@ COMMAND_MAP = {
     'жиркейс': 'cmd_fat_case',
     'жиркейс_шансы': 'cmd_fat_case_chances',
     'жиротрясы': 'cmd_fat_leaderboard',
-    'жирглобал': 'cmd_global_leaderboard',
     'жирстат': 'cmd_fat_stats',
     'жиринфо': 'cmd_fat_info',
     'жирзвания': 'cmd_show_ranks',
@@ -4850,13 +4469,14 @@ COMMAND_MAP = {
     'дуэль': 'cmd_duel',
     'отмена': 'cmd_cancel_duel',
     'датьпредмет': 'cmd_give_item',
+    'сбросвсехкд': 'cmd_reset_all_cooldowns',
+    'жирглобал': 'cmd_global_leaderboard',
     
-    # латинские команды (для меню BotFather)
+    # латинские команды
     'fat': 'cmd_fat',
     'fatcase': 'cmd_fat_case',
     'fatcase_chances': 'cmd_fat_case_chances',
     'fattys': 'cmd_fat_leaderboard',
-    'fatglobal': 'cmd_global_leaderboard',
     'fatstat': 'cmd_fat_stats',
     'fatinfo': 'cmd_fat_info',
     'ranks': 'cmd_show_ranks',
@@ -4879,19 +4499,101 @@ COMMAND_MAP = {
     'duel': 'cmd_duel',
     'cancel': 'cmd_cancel_duel',
     'giveitems': 'cmd_give_item',
-    'сбросвсехкд': 'cmd_reset_all_cooldowns',
+    'fatglobal': 'cmd_global_leaderboard',
 }
 
-async def force_update_commands():
-    """Принудительно обновляет список команд для всех чатов"""
+# ===== ГЛОБАЛЬНЫЙ ЛИДЕРБОРД =====
+global_leaderboard_cache = {
+    'data': None,
+    'time': None
+}
+
+async def cmd_global_leaderboard(message: types.Message):
+    """Показывает топ чатов по общей массе жира"""
+    register_chat(message.chat.id)
     
-    # Полный список команд (латиница для меню, но бот понимает и русские)
+    if (global_leaderboard_cache['data'] and 
+        global_leaderboard_cache['time'] and 
+        datetime.now() - global_leaderboard_cache['time'] < timedelta(hours=1)):
+        
+        await message.reply(global_leaderboard_cache['data'])
+        return
+    
+    chat_stats = []
+    
+    chats_to_check = list(active_chats)[:100]
+    
+    for i, chat_id in enumerate(chats_to_check):
+        try:
+            if i > 0:
+                await asyncio.sleep(0.2)
+            
+            chat = await bot.get_chat(chat_id)
+            chat_name = chat.title or f"Чат {chat_id}"
+            stats = get_chat_stats(chat_id)
+            
+            if stats['total_users'] > 0:
+                chat_stats.append({
+                    'name': chat_name[:30] + "..." if len(chat_name) > 30 else chat_name,
+                    'total_weight': stats['total_weight'],
+                    'users': stats['total_users'],
+                })
+        except Exception as e:
+            print(f"Ошибка чата {chat_id}: {e}")
+            continue
+    
+    if not chat_stats:
+        await message.reply("📭 Нет данных по чатам!")
+        return
+    
+    chat_stats.sort(key=lambda x: x['total_weight'], reverse=True)
+    
+    response = "🌍 **ГЛОБАЛЬНЫЙ РЕЙТИНГ ЧАТОВ** 🌍\n\n"
+    
+    for i, chat in enumerate(chat_stats[:15], 1):
+        if i == 1:
+            place = "🥇"
+        elif i == 2:
+            place = "🥈"
+        elif i == 3:
+            place = "🥉"
+        else:
+            place = f"{i}."
+        
+        if chat['total_weight'] >= 1000000:
+            weight = f"{chat['total_weight']/1000000:.1f}M"
+        elif chat['total_weight'] >= 1000:
+            weight = f"{chat['total_weight']/1000:.1f}K"
+        else:
+            weight = str(chat['total_weight'])
+        
+        response += f"{place} **{chat['name']}**\n"
+        response += f"   📦 **{weight} кг** | 👥 {chat['users']} уч.\n\n"
+    
+    total_weight = sum(c['total_weight'] for c in chat_stats)
+    total_users = sum(c['users'] for c in chat_stats)
+    
+    if total_weight >= 1000000:
+        total = f"{total_weight/1000000:.1f}M кг"
+    elif total_weight >= 1000:
+        total = f"{total_weight/1000:.1f}K кг"
+    else:
+        total = f"{total_weight} кг"
+    
+    response += f"📊 **Всего:** {len(chat_stats)} чатов | {total_users} уч.\n"
+    response += f"⚖️ **Общая масса:** {total}"
+    
+    global_leaderboard_cache['data'] = response
+    global_leaderboard_cache['time'] = datetime.now()
+    
+    await message.reply(response)
+
+async def force_update_commands():
     commands = [
         BotCommand(command="fat", description="набор массы"),
         BotCommand(command="fatcase", description="Открыть доступный кейс"),
         BotCommand(command="fatcase_chances", description="Шансы в ежедневном кейсе"),
         BotCommand(command="fattys", description="Лидерборд для чата"),
-        BotCommand(command="fatglobal", description="Глобальный лидерборд"),
         BotCommand(command="fatstat", description="Статистика Автобургеров"),
         BotCommand(command="fatinfo", description="Информация"),
         BotCommand(command="ranks", description="Звания"),
@@ -4908,12 +4610,11 @@ async def force_update_commands():
         BotCommand(command="giveitems", description="Передать предмет"),
         BotCommand(command="start", description="Запустить бота"),
         BotCommand(command="help", description="Помощь"),
+        BotCommand(command="fatglobal", description="Глобальный рейтинг"),
     ]
     
-    # Устанавливаем для всех чатов
     await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
     
-    # Также устанавливаем для конкретных чатов, где уже был бот
     for chat_id in active_chats:
         try:
             await bot.set_my_commands(
@@ -4927,24 +4628,19 @@ async def force_update_commands():
 
 @dp.message()
 async def universal_handler(message: types.Message):
-    # Проверяем, что это команда
     if not message.text or not message.text.startswith('/'):
         return
     
-    # Получаем username бота (один раз и кэшируем)
     if not hasattr(universal_handler, "bot_username"):
         bot_info = await bot.me()
         universal_handler.bot_username = bot_info.username.lower()
         print(f"✅ Бот username: @{universal_handler.bot_username}")
     
-    # Полный текст команды
     full_text = message.text[1:].strip()
     parts = full_text.split()
     
-    # Первая часть - это команда (может быть с @)
     raw_command = parts[0].lower()
     
-    # Обрабатываем все возможные форматы команд
     if '@' in raw_command:
         cmd_parts = raw_command.split('@')
         command = cmd_parts[0]
@@ -4958,13 +4654,11 @@ async def universal_handler(message: types.Message):
     else:
         command = raw_command
     
-    # Аргументы команды (если есть)
     args = parts[1:] if len(parts) > 1 else []
     
     print(f"🔍 Получено: '{message.text}'")
     print(f"   → Команда: '{command}', Аргументы: {args}")
     
-    # Маппинг латинских команд на русские
     latin_to_russian = {
         'fat': 'жир', 'fatcase': 'жиркейс', 'fatcase_chances': 'жиркейс_шансы',
         'fattys': 'жиротрясы', 'fatstat': 'жирстат', 'fatinfo': 'жиринфо',
@@ -4972,7 +4666,7 @@ async def universal_handler(message: types.Message):
         'shop': 'магазин', 'buy': 'купить', 'givefat': 'датьжир',
         'ascend': 'возвышение', 'upgrade': 'апгрейд', 'upgradekg': 'апгрейдкг',
         'choose': 'выбрать', 'duel': 'дуэль', 'giveitems': 'датьпредмет',
-        'start': 'start', 'help': 'help'
+        'start': 'start', 'help': 'help', 'fatglobal': 'жирглобал'
     }
     
     if command in latin_to_russian:
@@ -4987,17 +4681,14 @@ async def universal_handler(message: types.Message):
         if func:
             register_chat(message.chat.id)
             
-            # Подготавливаем "чистый" текст команды
             if args:
                 clean_text = f"/{command} " + " ".join(args)
             else:
                 clean_text = f"/{command}"
             
-            # Сохраняем оригинальное значение
             original_text = message.text
             
             try:
-                # Меняем текст через object.__setattr__ (обходим защиту Pydantic)
                 object.__setattr__(message, '_text', clean_text)
                 object.__setattr__(message, 'text', clean_text)
                 
@@ -5007,13 +4698,11 @@ async def universal_handler(message: types.Message):
                 print(f"   ❌ Ошибка: {e}")
                 await message.reply(f"❌ Ошибка при выполнении команды: {e}")
             finally:
-                # Восстанавливаем оригинал
                 object.__setattr__(message, '_text', original_text)
                 object.__setattr__(message, 'text', original_text)
         else:
             await message.reply(f"❌ Ошибка: функция {func_name} не найдена")
     else:
-        # Неизвестная команда - игнорируем
         print(f"❓ Неизвестная команда: '{command}'")
 
 # ===== ЗАПУСК БОТА =====
