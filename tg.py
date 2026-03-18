@@ -2288,6 +2288,7 @@ async def show_case_result(message, chat_id, user_id, user_name, prize, case):
         final_text += f"🍖 Новый вес: {new_number}kg\n"
         final_text += f"🎖️ Звание: {rank_emoji} {rank_name}"
     
+    # Отправляем финальное сообщение
     try:
         await message.reply(final_text)
     except:
