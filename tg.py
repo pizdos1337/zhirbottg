@@ -25,6 +25,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+# Для работы с изображениями и GIF
+from PIL import Image, ImageDraw, ImageFont
+import imageio
+import io
+import math
+import numpy as np
+import os
 
 # ===== НАСТРОЙКИ =====
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
