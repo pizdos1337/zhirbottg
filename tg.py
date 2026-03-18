@@ -2189,33 +2189,40 @@ async def process_case_open(callback: CallbackQuery):
     # Генерируем GIF
     try:
         gif_buffer = await generate_case_gif(prize_emoji, prize_emojis, case['name'])
+    
+        if gif_buffer is None:
+            # Если GIF не создался
+            await wait_msg.edit_text("⚡ Открываем кейс...")
+            await asyncio.sleep(1)
+            await wait_msg.delete()
+        else:
+            # Отправляем GIF
+            gif_msg = await callback.message.reply_animation(
+                animation=types.input_file.BufferedInputFile(gif_buffer.getvalue(), "case.gif"),
+                caption="🎰 Крутим барабан..."
+            )
         
-        # Отправляем GIF
-        gif_msg = await callback.message.reply_animation(
-            animation=types.input_file.BufferedInputFile(gif_buffer.getvalue(), "case.gif"),
-            caption="🎰 Крутим барабан..."
-        )
+            # Ждем окончания анимации
+            await asyncio.sleep(6)
         
-        # Ждем окончания анимации (6 секунд)
-        await asyncio.sleep(6)
+            # Удаляем сообщение с GIF
+            try:
+                await gif_msg.delete()
+            except:
+                pass
         
-        # Удаляем сообщение с GIF
-        try:
-            await gif_msg.delete()
-        except:
-            pass
+            # Удаляем сообщение "ПРОКРУТКА"
+            try:
+                await wait_msg.delete()
+            except:
+                pass
         
-        # Удаляем сообщение "ПРОКРУТКА"
+    except Exception as e:
+        print(f"❌ Ошибка в процессе отправки GIF: {e}")
         try:
             await wait_msg.delete()
         except:
             pass
-        
-    except Exception as e:
-        print(f"Ошибка при создании GIF: {e}")
-        # Если GIF не создался, показываем простую анимацию
-        await wait_msg.edit_text("⚠️ Произошла ошибка, но кейс открыт!")
-        await asyncio.sleep(1)
     
     # Показываем результат
     await show_case_result(callback.message, chat_id, user_id, user_name, prize, case)
