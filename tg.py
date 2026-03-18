@@ -25,6 +25,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+# Для работы с изображениями и GIF
+from PIL import Image, ImageDraw, ImageFont
+import imageio
+import io
+import math
+import numpy as np
+import os
 
 # ===== НАСТРОЙКИ =====
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -1576,6 +1583,94 @@ async def upgrade_kg_animation(message: types.Message, user_id, user_name, amoun
     result_text_full = f"**{display_line}**\n\n{result_text}\n\n{result_description}\n\nШанс был: {target_item['chance']*100:.1f}%"
     await anim_msg.edit_text(result_text_full)
 
+async def generate_case_gif(prize_emoji, prize_emojis, case_name):
+    """Генерирует GIF анимацию открытия кейса (ровно под 1 строку текста)"""
+    
+    # Размеры под одно сообщение Telegram
+    width = 450  # 9 эмодзи * 50px примерно
+    height = 70  # высота одной строки
+    
+    # Генерируем линию из 100 эмодзи
+    line = [random.choice(prize_emojis) for _ in range(100)]
+    line[57] = prize_emoji  # приз в центре
+    
+    frames = []
+    
+    # Создаем 30 кадров для 6-секундной анимации
+    for i in range(30):
+        # Создаем изображение с прозрачным фоном
+        img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        
+        # Эффект "кручения" - окно движется туда-сюда
+        progress = i / 29  # от 0 до 1
+        # Синусоидальное движение: 40 -> 70 -> 40
+        center_pos = int(40 + 30 * math.sin(progress * math.pi))
+        
+        # Берем 9 эмодзи с центром в center_pos
+        start = max(0, center_pos - 4)
+        end = min(100, center_pos + 5)
+        visible = line[start:end]
+        
+        # Добиваем до 9 если надо
+        while len(visible) < 9:
+            if start > 0:
+                visible.insert(0, random.choice(prize_emojis))
+            else:
+                visible.append(random.choice(prize_emojis))
+        
+        # Формируем строку с палками
+        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+        
+        # Рисуем текст
+        try:
+            # Пробуем разные шрифты для эмодзи
+            font_paths = [
+                "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+                "/System/Library/Fonts/Apple Color Emoji.ttc",
+                "C:/Windows/Fonts/seguiemj.ttf",
+                "arial.ttf"
+            ]
+            
+            font = None
+            for font_path in font_paths:
+                if os.path.exists(font_path):
+                    font = ImageFont.truetype(font_path, 40)
+                    break
+            if font is None:
+                font = ImageFont.load_default()
+        except:
+            font = ImageFont.load_default()
+        
+        # Центрируем текст
+        bbox = draw.textbbox((0, 0), display_line, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        x = (width - text_width) // 2
+        y = (height - text_height) // 2
+        
+        # Рисуем текст с обводкой для читаемости
+        for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1)]:
+            draw.text((x+dx, y+dy), display_line, font=font, fill=(0, 0, 0, 200))
+        draw.text((x, y), display_line, font=font, fill=(255, 255, 255))
+        
+        frames.append(np.array(img))
+    
+    # Сохраняем в GIF с одним циклом
+    gif_buffer = io.BytesIO()
+    imageio.mimsave(
+        gif_buffer, 
+        frames, 
+        format='GIF',
+        duration=0.2,  # 0.2 сек * 30 кадров = 6 секунд
+        loop=1,  # Один цикл и остановка
+        palettesize=64,  # Оптимизация размера
+        subrectangles=True
+    )
+    gif_buffer.seek(0)
+    
+    return gif_buffer
+    
 async def duel_animation(message: types.Message, challenger_name, opponent_name):
     duel_emojis = ["⬆️", "⬇️", "⚔️"]
     
@@ -1819,7 +1914,7 @@ async def cmd_fat_case(message: types.Message):
         )
         return
     
-    # Создаём клавиатуру с кнопками открытия и пропуска
+    # Создаём клавиатуру с кнопками
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -1840,13 +1935,12 @@ async def cmd_fat_case(message: types.Message):
     
     case_msg = await message.reply(case_text, reply_markup=keyboard)
     
-    # Сохраняем информацию о сообщении и типе кейса
     update_user_data(
         chat_id, user_id,
         active_case_message_id=str(case_msg.message_id),
         last_case_type=case_to_open
     )
-
+    
 @dp.callback_query(lambda c: c.data and c.data.startswith('skip_case_'))
 async def process_case_skip(callback: CallbackQuery):
     register_chat(callback.message.chat.id)
@@ -1898,7 +1992,6 @@ async def process_case_skip(callback: CallbackQuery):
 async def process_case_open(callback: CallbackQuery):
     register_chat(callback.message.chat.id)
     
-    # Определяем тип действия
     is_skip = callback.data.startswith('skip_case_')
     case_to_open = callback.data.replace('open_case_', '').replace('skip_case_', '')
     
@@ -1906,23 +1999,20 @@ async def process_case_open(callback: CallbackQuery):
     user_id = callback.from_user.id
     user_name = callback.from_user.full_name
     
-    # Получаем данные пользователя
     data = get_user_data(chat_id, user_id, user_name)
     
-    # Проверяем, что это тот же пользователь
     if str(user_id) != data['user_id']:
         await callback.answer("Это не ваш кейс!", show_alert=True)
         return
     
-    # ===== ИСПРАВЛЕНО: Удаляем клавиатуру СРАЗУ, чтобы нельзя было нажать дважды =====
+    # Удаляем клавиатуру сразу
     try:
         await callback.message.delete_reply_markup()
     except:
         pass
     
-    # ===== ИСПРАВЛЕНО: СПИСЫВАЕМ КЕЙС СРАЗУ =====
+    # ===== СПИСЫВАЕМ КЕЙС =====
     if case_to_open == "daily":
-        # Проверяем кулдаун ежедневного кейса
         actual_case_cooldown = CASE_COOLDOWN_HOURS
         if data['legendary_burger'] >= 0 and data['legendary_burger'] < len(BURGER_RANKS):
             actual_case_cooldown = BURGER_RANKS[data['legendary_burger']]["case_cooldown"]
@@ -1939,58 +2029,36 @@ async def process_case_open(callback: CallbackQuery):
         can_get_daily, daily_remaining = can_get_daily_case(chat_id, user_id, actual_case_cooldown)
         
         if not can_get_daily:
-            await callback.answer(f"⏳ Ежедневный кейс ещё не доступен! Осталось: {format_time(daily_remaining)}", show_alert=True)
+            await callback.answer(f"⏳ Ежедневный кейс ещё не доступен!", show_alert=True)
             await callback.message.delete()
             return
         
-        # Помечаем, что ежедневный кейс использован
         update_daily_case_time(chat_id, user_id)
-        
     else:
-        # Проверяем наличие кейса в инвентаре
         cases_dict = data.get('cases_dict', {}).copy()
         if cases_dict.get(case_to_open, 0) <= 0:
             await callback.answer("❌ У вас больше нет этого кейса!", show_alert=True)
             await callback.message.delete()
             return
         
-        # СПИСЫВАЕМ КЕЙС СРАЗУ!
         cases_dict[case_to_open] -= 1
         update_user_data(chat_id, user_id, cases_dict=cases_dict)
     
-    # Отвечаем на callback
     await callback.answer()
     
-    # ===== ИСПРАВЛЕНО: ПОЛУЧАЕМ ПРИЗ СНАЧАЛА =====
+    # Получаем приз
     prize = open_case(case_to_open, data['legendary_burger'])
     case = CASES[case_to_open]
     
-    # ===== ИСПРАВЛЕНО: ОПРЕДЕЛЯЕМ ЭМОДЗИ ПРИЗА НА ОСНОВЕ РЕАЛЬНОГО ПРИЗА =====
-    if "emoji" in prize:
-        prize_emoji = prize["emoji"]
-    elif prize["value"] == "autoburger":
-        prize_emoji = "🍔"
-    elif prize["value"] == "rotten_leg":
-        prize_emoji = "💀"
-    elif prize["value"] == "water":
-        prize_emoji = "💧"
-    elif isinstance(prize["value"], int):
-        if prize["value"] < 0:
-            prize_emoji = "📉"
-        elif prize["value"] == 0:
-            prize_emoji = "🔄"
-        elif prize["value"] < 50:
-            prize_emoji = "📈"
-        elif prize["value"] < 100:
-            prize_emoji = "⬆️"
-        elif prize["value"] < 500:
-            prize_emoji = "🚀"
-        elif prize["value"] < 1000:
-            prize_emoji = "⭐"
-        else:
-            prize_emoji = "💥"
-    else:
-        prize_emoji = "🎁"
+    # Если пропуск анимации - сразу результат
+    if is_skip:
+        await show_case_result(callback.message, chat_id, user_id, user_name, prize, case)
+        return
+    
+    # ===== АНИМАЦИЯ С GIF =====
+    
+    # Отправляем сообщение "ПРОКРУТКА"
+    wait_msg = await callback.message.reply("🎰 **ПРОКРУТКА** 🎰")
     
     # Определяем эмодзи для анимации
     prize_emojis = []
@@ -2025,70 +2093,67 @@ async def process_case_open(callback: CallbackQuery):
         if emoji not in prize_emojis:
             prize_emojis.append(emoji)
     
-    # Генерируем линию
-    line = [random.choice(prize_emojis) for _ in range(100)]
-    line[56] = prize_emoji  # Ставим приз в центр
+    # Определяем эмодзи приза
+    if "emoji" in prize:
+        prize_emoji = prize["emoji"]
+    elif prize["value"] == "autoburger":
+        prize_emoji = "🍔"
+    elif prize["value"] == "rotten_leg":
+        prize_emoji = "💀"
+    elif prize["value"] == "water":
+        prize_emoji = "💧"
+    elif isinstance(prize["value"], int):
+        if prize["value"] < 0:
+            prize_emoji = "📉"
+        elif prize["value"] == 0:
+            prize_emoji = "🔄"
+        elif prize["value"] < 50:
+            prize_emoji = "📈"
+        elif prize["value"] < 100:
+            prize_emoji = "⬆️"
+        elif prize["value"] < 500:
+            prize_emoji = "🚀"
+        elif prize["value"] < 1000:
+            prize_emoji = "⭐"
+        else:
+            prize_emoji = "💥"
+    else:
+        prize_emoji = "🎁"
     
-    if is_skip:
-        # Пропускаем анимацию - сразу показываем результат
-        visible = line[52:61]
-        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-        result_embed = f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**"
+    # Генерируем GIF
+    try:
+        gif_buffer = await generate_case_gif(prize_emoji, prize_emojis, case['name'])
         
+        # Отправляем GIF
+        gif_msg = await callback.message.reply_animation(
+            animation=types.input_file.BufferedInputFile(gif_buffer.getvalue(), "case.gif"),
+            caption="🎰 Крутим барабан..."
+        )
+        
+        # Ждем окончания анимации (6 секунд)
+        await asyncio.sleep(6)
+        
+        # Удаляем сообщение с GIF
         try:
-            await callback.message.edit_text(result_embed)
-        except Exception as e:
-            print(f"Ошибка при показе результата: {e}")
+            await gif_msg.delete()
+        except:
+            pass
         
-        await asyncio.sleep(1.5)
+        # Удаляем сообщение "ПРОКРУТКА"
+        try:
+            await wait_msg.delete()
+        except:
+            pass
         
-        # Показываем финальный результат
-        await show_case_result(callback.message, chat_id, user_id, user_name, prize, case)
-        return
-    
-    # Полная анимация
-    anim_text = f"🎰 **{case['name']}** 🎰"
-    anim_msg = await callback.message.reply(anim_text)
-    
-    animation_frames = [
-        (1, 5), (2, 10), (3, 15), (4, 20), (5, 25),
-        (6, 30), (7, 35), (8, 39), (9, 43), (10, 47),
-        (11, 50), (12, 52), (13, 54), (14, 55), (15, 56),
-        (16, 56), (17, 57), (18, 57), (19, 57), (20, 57),
-        (21, 57)  # Добавляем дополнительный кадр для надёжности
-    ]
-    
-    last_text = None
-    
-    for frame_num, center_pos in animation_frames:
-        visible = line[center_pos-4:center_pos+5]
-        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-        current_text = f"**{display_line}**"
-        
-        if current_text != last_text:
-            try:
-                await anim_msg.edit_text(current_text)
-                last_text = current_text
-            except Exception as e:
-                print(f"Ошибка при анимации: {e}")
-        
-        await asyncio.sleep(0.5)
+    except Exception as e:
+        print(f"Ошибка при создании GIF: {e}")
+        # Если GIF не создался, показываем простую анимацию
+        await wait_msg.edit_text("⚠️ Произошла ошибка, но кейс открыт!")
+        await asyncio.sleep(1)
     
     # Показываем результат
-    visible = line[52:61]
-    display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-    result_embed = f"**{display_line}**\n\n**РЕЗУЛЬТАТ!**"
+    await show_case_result(callback.message, chat_id, user_id, user_name, prize, case)
     
-    try:
-        await anim_msg.edit_text(result_embed)
-    except Exception as e:
-        print(f"Ошибка при показе результата: {e}")
-    
-    await asyncio.sleep(1.5)
-    
-    # Показываем финальный результат
-    await show_case_result(anim_msg, chat_id, user_id, user_name, prize, case)
-
 async def case_animation(message, chat_id, user_id, user_name, case_id, prize, skip=False):
     """Анимация открытия кейса с возможностью пропуска"""
     
@@ -2226,7 +2291,6 @@ async def case_animation(message, chat_id, user_id, user_name, case_id, prize, s
 async def show_case_result(message, chat_id, user_id, user_name, prize, case):
     """Показывает финальный результат открытия кейса"""
     
-    # Получаем актуальные данные пользователя
     data = get_user_data(chat_id, user_id, user_name)
     
     items_dict = get_user_items(data['item_counts'])
@@ -2270,9 +2334,11 @@ async def show_case_result(message, chat_id, user_id, user_name, prize, case):
         'next_autoburger_time': new_next_autoburger_time,
         'item_counts': save_user_items(items_dict),
         'active_case_message_id': None,
-        'last_case_type': None,
-        'last_case_prize': None
+        'last_case_type': None
     }
+    
+    if case["name"] == "Жиркейс":
+        update_data['daily_case_last_time'] = datetime.now()
     
     update_user_data(chat_id, user_id, **update_data)
     
@@ -2301,8 +2367,8 @@ async def show_case_result(message, chat_id, user_id, user_name, prize, case):
     try:
         await message.reply(final_text)
     except:
-        await message.reply("✅ Кейс открыт! (ошибка отображения)")
-
+        await message.reply("✅ Кейс открыт!")
+        
 async def cmd_fat_case_chances(message: types.Message):
     register_chat(message.chat.id)
     """Шансы в кейсе"""
