@@ -3913,6 +3913,158 @@ async def cmd_cancel_duel(message: types.Message):
     
     await message.reply(f"✅ Дуэль отменена!")
 
+async def cmd_sell(message: types.Message):
+    """Продажа предметов из инвентаря за 70% стоимости"""
+    register_chat(message.chat.id)
+    
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    user_name = message.from_user.full_name
+    
+    # Парсим аргументы
+    parts = message.text.split() if message.text else []
+    
+    if len(parts) < 2:
+        await message.reply(
+            "❌ Использование: `/продать [название предмета] [количество]`\n"
+            "Пример: `/продать Горелый бекон 5`\n"
+            "Пример: `/продать всё` - продать всё сразу\n\n"
+            "💰 **Цена продажи: 70% от стоимости предмета**"
+        )
+        return
+    
+    data = get_user_data(chat_id, user_id, user_name)
+    items_dict = get_user_items(data['item_counts'])
+    
+    # Проверяем на "всё"
+    if parts[1].lower() == "всё" or parts[1].lower() == "все":
+        if not items_dict:
+            await message.reply("📭 У вас нет предметов для продажи!")
+            return
+        
+        total_gain = 0
+        sold_items = []
+        
+        # Продаём всё по очереди
+        for item_name, count in list(items_dict.items()):
+            price = get_item_price(item_name)
+            if price > 0:
+                sell_price = int(price * 0.7)  # 70% от стоимости
+                item_gain = sell_price * count
+                total_gain += item_gain
+                sold_items.append(f"{item_name} x{count} — {item_gain} кг")
+                del items_dict[item_name]
+        
+        if total_gain == 0:
+            await message.reply("❌ Ни один из ваших предметов нельзя продать!")
+            return
+        
+        # Обновляем данные
+        new_number = data['current_number'] + total_gain
+        update_user_data(
+            chat_id, user_id,
+            number=new_number,
+            item_counts=save_user_items(items_dict)
+        )
+        
+        # Формируем ответ
+        response = f"💰 **Продажа всех предметов**\n\n"
+        response += f"**{user_name}** продал всё!\n\n"
+        response += "📦 **Продано:**\n" + "\n".join(sold_items[:10])
+        if len(sold_items) > 10:
+            response += f"\n... и ещё {len(sold_items) - 10} предметов"
+        response += f"\n\n💸 **Получено:** {total_gain} кг\n"
+        response += f"🍖 **Новый вес:** {new_number}kg"
+        
+        await message.reply(response)
+        return
+    
+    # Обычная продажа конкретного предмета
+    if len(parts) < 3:
+        # Пробуем распарсить название предмета без количества
+        item_name = message.text.replace('/продать', '', 1).strip()
+        amount = 1
+    else:
+        # Формат: /продать название количество
+        try:
+            amount = int(parts[-1])
+            item_name = ' '.join(parts[1:-1]).strip()
+        except ValueError:
+            # Если последнее не число - значит это всё название
+            item_name = message.text.replace('/продать', '', 1).strip()
+            amount = 1
+    
+    if amount <= 0:
+        await message.reply("❌ Количество должно быть больше 0!")
+        return
+    
+    # Ищем предмет в инвентаре (без учёта регистра)
+    found_item = None
+    for key in items_dict.keys():
+        if key.lower() == item_name.lower():
+            found_item = key
+            break
+    
+    if not found_item:
+        # Ищем частичное совпадение
+        for key in items_dict.keys():
+            if item_name.lower() in key.lower():
+                found_item = key
+                break
+    
+    if not found_item:
+        if items_dict:
+            items_list = "\n".join([f"• {item}: {count} шт" for item, count in list(items_dict.items())[:10]])
+            if len(items_dict) > 10:
+                items_list += f"\n... и ещё {len(items_dict) - 10} предметов"
+            await message.reply(f"❌ У вас нет предмета '{item_name}'!\n\n📦 **Ваши предметы:**\n{items_list}")
+        else:
+            await message.reply("❌ У вас нет предметов в инвентаре!")
+        return
+    
+    if items_dict[found_item] < amount:
+        await message.reply(f"❌ У вас недостаточно '{found_item}'! Есть: {items_dict[found_item]}, нужно: {amount}")
+        return
+    
+    # Получаем цену предмета
+    price = get_item_price(found_item)
+    if price == 0:
+        await message.reply(f"❌ Предмет '{found_item}' нельзя продать (нет цены)!")
+        return
+    
+    # Рассчитываем цену продажи (70%)
+    sell_price = int(price * 0.7)
+    total_gain = sell_price * amount
+    
+    # Обновляем инвентарь
+    items_dict[found_item] -= amount
+    if items_dict[found_item] <= 0:
+        del items_dict[found_item]
+    
+    # Обновляем вес
+    new_number = data['current_number'] + total_gain
+    
+    update_user_data(
+        chat_id, user_id,
+        number=new_number,
+        item_counts=save_user_items(items_dict)
+    )
+    
+    # Формируем ответ
+    response = f"💰 **Продажа предмета**\n\n"
+    response += f"**{user_name}** продал:\n\n"
+    response += f"📦 Предмет: **{found_item}** x{amount}\n"
+    response += f"💎 Цена за шт: {price} кг\n"
+    response += f"🏷️ Цена продажи (70%): {sell_price} кг/шт\n"
+    response += f"💸 Всего получено: **{total_gain} кг**\n\n"
+    response += f"🍖 Новый вес: **{new_number}kg**"
+    
+    # Показываем остаток предметов
+    if found_item in items_dict:
+        response += f"\n📦 Осталось {found_item}: {items_dict[found_item]} шт"
+    
+    await message.reply(response)
+
 async def cmd_give_item(message: types.Message):
     register_chat(message.chat.id)
     
@@ -4454,6 +4606,7 @@ COMMAND_MAP = {
     'инвентарь': 'cmd_show_inventory',
     'магазин': 'cmd_shop',
     'купить': 'cmd_buy',
+    'продать': 'cmd_sell',
     'датьжир': 'cmd_give_fat',
     'возвышение': 'cmd_ascension',
     'апгрейд': 'cmd_upgrade',
@@ -4484,6 +4637,7 @@ COMMAND_MAP = {
     'inventory': 'cmd_show_inventory',
     'shop': 'cmd_shop',
     'buy': 'cmd_buy',
+    'sell': 'cmd_sell',
     'givefat': 'cmd_give_fat',
     'ascend': 'cmd_ascension',
     'upgrade': 'cmd_upgrade',
