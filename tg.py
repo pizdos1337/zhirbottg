@@ -4743,42 +4743,70 @@ async def cmd_global_leaderboard(message: types.Message):
     await message.reply(response)
 
 async def force_update_commands():
-    commands = [
-        BotCommand(command="fat", description="набор массы"),
-        BotCommand(command="fatcase", description="Открыть доступный кейс"),
-        BotCommand(command="fatcase_chances", description="Шансы в ежедневном кейсе"),
-        BotCommand(command="fattys", description="Лидерборд для чата"),
-        BotCommand(command="fatstat", description="Статистика Автобургеров"),
-        BotCommand(command="fatinfo", description="Информация"),
-        BotCommand(command="ranks", description="Звания"),
-        BotCommand(command="cooldowns", description="Информация о кулдаунах"),
-        BotCommand(command="inventory", description="Показывает инвентарь"),
-        BotCommand(command="shop", description="Магазин"),
-        BotCommand(command="buy", description="Купить предмет"),
-        BotCommand(command="givefat", description="Передать кг"),
-        BotCommand(command="ascend", description="Возвышение"),
-        BotCommand(command="upgrade", description="Улучшить предмет"),
-        BotCommand(command="upgradekg", description="Улучшить кг"),
-        BotCommand(command="choose", description="Выбрать цель улучшения"),
-        BotCommand(command="duel", description="Дуэль"),
-        BotCommand(command="giveitems", description="Передать предмет"),
-        BotCommand(command="start", description="Запустить бота"),
-        BotCommand(command="help", description="Помощь"),
-        BotCommand(command="fatglobal", description="Глобальный рейтинг"),
-    ]
-    
-    await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
-    
-    for chat_id in active_chats:
+    """Принудительно обновляет список команд для всех чатов"""
+    try:
+        # Полный список команд (латиница для меню, но бот понимает и русские)
+        commands = [
+            BotCommand(command="fat", description="набор массы"),
+            BotCommand(command="fatcase", description="Открыть доступный кейс"),
+            BotCommand(command="fatcase_chances", description="Шансы в ежедневном кейсе"),
+            BotCommand(command="fattys", description="Лидерборд для чата"),
+            BotCommand(command="fatstat", description="Статистика Автобургеров"),
+            BotCommand(command="fatinfo", description="Информация"),
+            BotCommand(command="ranks", description="Звания"),
+            BotCommand(command="cooldowns", description="Информация о кулдаунах"),
+            BotCommand(command="inventory", description="Показывает инвентарь"),
+            BotCommand(command="shop", description="Магазин"),
+            BotCommand(command="buy", description="Купить предмет"),
+            BotCommand(command="givefat", description="Передать кг"),
+            BotCommand(command="ascend", description="Возвышение"),
+            BotCommand(command="upgrade", description="Улучшить предмет"),
+            BotCommand(command="upgradekg", description="Улучшить кг"),
+            BotCommand(command="choose", description="Выбрать цель улучшения"),
+            BotCommand(command="duel", description="Дуэль"),
+            BotCommand(command="giveitems", description="Передать предмет"),
+            BotCommand(command="start", description="Запустить бота"),
+            BotCommand(command="help", description="Помощь"),
+            BotCommand(command="fatglobal", description="Глобальный рейтинг"),
+            BotCommand(command="sell", description="Продать предметы"),
+        ]
+        
+        # ===== ИСПРАВЛЕНО: Добавляем таймаут и обработку ошибок =====
         try:
-            await bot.set_my_commands(
-                commands, 
-                scope=BotCommandScopeChat(chat_id=chat_id)
+            # Устанавливаем для всех чатов с таймаутом
+            await asyncio.wait_for(
+                bot.set_my_commands(commands, scope=BotCommandScopeDefault()),
+                timeout=10.0  # 10 секунд максимум
             )
-        except:
-            pass
-    
-    print("✅ Список команд принудительно обновлен")
+            print("✅ Команды для всех чатов обновлены")
+        except asyncio.TimeoutError:
+            print("⚠️ Таймаут при обновлении команд для всех чатов, пропускаем")
+        except Exception as e:
+            print(f"⚠️ Ошибка при обновлении команд для всех чатов: {e}")
+        
+        # Обновляем для конкретных чатов
+        for chat_id in list(active_chats)[:50]:  # Ограничиваем 50 чатами
+            try:
+                await asyncio.wait_for(
+                    bot.set_my_commands(
+                        commands, 
+                        scope=BotCommandScopeChat(chat_id=chat_id)
+                    ),
+                    timeout=5.0  # 5 секунд на чат
+                )
+                await asyncio.sleep(0.5)  # Задержка между запросами
+            except asyncio.TimeoutError:
+                print(f"⚠️ Таймаут при обновлении команд для чата {chat_id}")
+                continue
+            except Exception as e:
+                print(f"⚠️ Ошибка при обновлении команд для чата {chat_id}: {e}")
+                continue
+        
+        print("✅ Список команд принудительно обновлен (с пропусками)")
+        
+    except Exception as e:
+        print(f"❌ Критическая ошибка в force_update_commands: {e}")
+        # Не даём боту упасть
 
 @dp.message()
 async def universal_handler(message: types.Message):
