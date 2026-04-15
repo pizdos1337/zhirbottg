@@ -1757,7 +1757,50 @@ async def process_duel(cb: CallbackQuery):
         chall_data = get_user_data(cid, chall_id, chall.user.full_name)
         opp_data = get_user_data(cid, opp_id, opp.user.full_name)
         
+        # ===== АНИМАЦИЯ ДУЭЛИ (как в Discord) =====
+        c_name = chall.user.full_name[:15] + "..." if len(chall.user.full_name) > 15 else chall.user.full_name
+        o_name = opp.user.full_name[:15] + "..." if len(opp.user.full_name) > 15 else opp.user.full_name
+        max_len = max(len(c_name), len(o_name))
+        c_name = c_name.ljust(max_len)
+        o_name = o_name.ljust(max_len)
+        
+        duel_emojis = ["⬆️", "⬇️", "⚔️"]
+        line = [random.choice(duel_emojis) for _ in range(100)]
         result = random.randint(0, 2)
+        
+        if result == 0:
+            result_emoji = "⬆️"
+            result_text = f"🏆 **Победитель:** {chall.user.full_name}"
+        elif result == 1:
+            result_emoji = "⬇️"
+            result_text = f"🏆 **Победитель:** {opp.user.full_name}"
+        else:
+            result_emoji = "⚔️"
+            result_text = "🤝 **НИЧЬЯ!** 🤝"
+        
+        line[57] = result_emoji
+        anim_msg = await cb.message.reply(f"**{c_name}**\n**⚔️ ДУЭЛЬ ⚔️**\n**{o_name}**")
+        
+        animation_frames = [(1,5),(2,10),(3,15),(4,20),(5,25),(6,30),(7,35),(8,39),(9,43),(10,47),(11,50),(12,52),(13,54),(14,55),(15,56),(16,56),(17,57),(18,57),(19,57),(20,57)]
+        
+        for frame_num, center_pos in animation_frames:
+            visible = line[center_pos-4:center_pos+5]
+            display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+            try:
+                await anim_msg.edit_text(f"**{c_name}**\n**{display_line}**\n**{o_name}**")
+            except:
+                pass
+            await asyncio.sleep(0.5)
+        
+        visible = line[53:62]
+        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+        try:
+            await anim_msg.edit_text(f"**{c_name}**\n**{display_line}**\n**{o_name}**\n\n{result_text}")
+        except:
+            pass
+        await asyncio.sleep(1.5)
+        # ===== КОНЕЦ АНИМАЦИИ =====
+        
         if result == 0:
             winner, loser = chall.user, opp.user
             winner_new = chall_data['current_number'] + amt
@@ -1765,7 +1808,7 @@ async def process_duel(cb: CallbackQuery):
             update_user_data(cid, winner.id, number=winner_new)
             update_user_data(cid, loser.id, number=loser_new)
             add_xp(cid, winner.id, XP_PER_DUEL_WIN)
-            res_text = f"🏆 **Победитель:** {winner.full_name}\n\n{winner.full_name}: {chall_data['current_number']} → {winner_new} (+{amt})\n{loser.full_name}: {opp_data['current_number']} → {loser_new} (-{amt})"
+            res_text = f"**Победитель:** {winner.full_name}\n\n{winner.full_name}: {chall_data['current_number']} → {winner_new} (+{amt})\n{loser.full_name}: {opp_data['current_number']} → {loser_new} (-{amt})"
         elif result == 1:
             winner, loser = opp.user, chall.user
             winner_new = opp_data['current_number'] + amt
@@ -1773,13 +1816,13 @@ async def process_duel(cb: CallbackQuery):
             update_user_data(cid, winner.id, number=winner_new)
             update_user_data(cid, loser.id, number=loser_new)
             add_xp(cid, winner.id, XP_PER_DUEL_WIN)
-            res_text = f"🏆 **Победитель:** {winner.full_name}\n\n{winner.full_name}: {opp_data['current_number']} → {winner_new} (+{amt})\n{loser.full_name}: {chall_data['current_number']} → {loser_new} (-{amt})"
+            res_text = f"**Победитель:** {winner.full_name}\n\n{winner.full_name}: {opp_data['current_number']} → {winner_new} (+{amt})\n{loser.full_name}: {chall_data['current_number']} → {loser_new} (-{amt})"
         else:
             res_text = "🤝 **НИЧЬЯ!** 🤝\n\nНикто не потерял кг"
         
         update_user_data(cid, chall_id, duel_active=0)
         update_user_data(cid, opp_id, duel_active=0)
-        await cb.message.reply(f"⚔️ **ДУЭЛЬ ЗАВЕРШЕНА!** ⚔️\n\n{res_text}")
+        await anim_msg.reply(f"⚔️ **ДУЭЛЬ ЗАВЕРШЕНА!** ⚔️\n\n{res_text}")
         
     elif action == 'decline':
         chall_id = int(parts[2])
@@ -1791,7 +1834,7 @@ async def process_duel(cb: CallbackQuery):
         update_user_data(cid, chall_id, duel_active=0)
         update_user_data(cid, opp_id, duel_active=0)
         await cb.message.edit_text(f"❌ **Дуэль отклонена**\n\n{cb.from_user.full_name} отказался!", reply_markup=None)
-
+        
 # /отменавсё
 async def cmd_cancel_all(message: Message):
     register_chat(message.chat.id)
