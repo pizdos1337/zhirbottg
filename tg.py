@@ -15,6 +15,7 @@ from aiogram.types import (
 )
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.exceptions import TelegramRetryAfter
 
 # ===== НАСТРОЙКИ =====
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -540,9 +541,6 @@ def can_get_daily_case(chat_id, user_id, custom_cooldown=None):
 def update_daily_case_time(chat_id, user_id):
     update_user_data(chat_id, user_id, daily_case_last_time=datetime.now())
 
-def are_animations_enabled(user_data):
-    return user_data.get('animations_enabled', 1) == 1
-
 # ===== ОСНОВНЫЕ ФУНКЦИИ =====
 def get_change_with_pity_and_jackpot(consecutive_plus, consecutive_minus, jackpot_pity, luck_upgrade=0, prestige_bonus=1.0, items_dict=None, current_weight=None):
     if items_dict is None:
@@ -1033,9 +1031,7 @@ async def migrate_old_data(chat_id):
         conn.commit()
     conn.close()
 
-# ===== ВСЕ КОМАНДЫ =====
-
-# /жир
+# ===== КОМАНДЫ (без анимаций) =====
 async def cmd_fat(message: Message):
     register_chat(message.chat.id)
     cid = message.chat.id
@@ -1084,7 +1080,6 @@ async def cmd_fat(message: Message):
     resp += f"\n⏰ Следующая команда через {actual_cd*60:.0f} мин"
     await message.reply(resp)
 
-# /жиркейс
 async def cmd_fat_case(message: Message):
     register_chat(message.chat.id)
     cid = message.chat.id
@@ -1222,7 +1217,6 @@ async def process_case_callback(cb: CallbackQuery):
         final += f"\n⭐ **ПОВЫШЕНИЕ УРОВНЯ!** ⭐\n+{kg_reward} кг за {lvl_gain} уровень(ей)!\nТеперь у вас **{new_lvl}** уровень!\n"
     await cb.message.reply(final)
 
-# /профиль
 async def cmd_profile(message: Message):
     register_chat(message.chat.id)
     cid = message.chat.id
@@ -1238,7 +1232,7 @@ async def cmd_profile(message: Message):
     prog = int((cur_xp / next_xp) * bar_len) if next_xp > 0 else 0
     bar = "█" * prog + "░" * (bar_len - prog)
     
-    resp = f"⭐ **ПРОФИЛЬ** ⭐\n\n**{uname}**\n{'🎬 Анимации: ВКЛ' if data.get('animations_enabled', 1) == 1 else '🔇 Анимации: ВЫКЛ'}\n\n"
+    resp = f"⭐ **ПРОФИЛЬ** ⭐\n\n**{uname}**\n\n"
     resp += f"📊 **ОСНОВНАЯ ИНФОРМАЦИЯ**\n"
     resp += f"🍖 Вес: **{data['current_number']}kg**\n"
     resp += f"🎖️ Звание: {rank_emoji} **{rank_name}**\n"
@@ -1254,11 +1248,9 @@ async def cmd_profile(message: Message):
     resp += f"• **Авто-жир** — ур.{data.get('auto_fat_level', 0)} ({get_auto_fat_interval(data.get('auto_fat_level', 0)) or 'не куплен'} ч)\n\n"
     
     resp += f"💡 Используйте `/апгрейдюзер [номер]` для улучшения характеристик\n"
-    resp += f"1 - КД /жир | 2 - КД кейса | 3 - Удача | 4 - Прибавка | 5 - Престиж | 6 - Авто-жир\n"
-    resp += f"🎬 Для переключения анимаций используйте `/анимации`"
+    resp += f"1 - КД /жир | 2 - КД кейса | 3 - Удача | 4 - Прибавка | 5 - Престиж | 6 - Авто-жир"
     await message.reply(resp)
 
-# /анимации
 async def cmd_animations(message: Message):
     register_chat(message.chat.id)
     cid = message.chat.id
@@ -1269,7 +1261,6 @@ async def cmd_animations(message: Message):
     update_user_data(cid, uid, animations_enabled=new)
     await message.reply(f"{'🎬 Анимации ВКЛЮЧЕНЫ' if new == 1 else '🔇 Анимации ВЫКЛЮЧЕНЫ'}")
 
-# /жиркейс_шансы
 async def cmd_fat_case_chances(message: Message):
     register_chat(message.chat.id)
     resp = "📊 **ШАНСЫ В КЕЙСЕ** 📊\n\n"
@@ -1279,7 +1270,6 @@ async def cmd_fat_case_chances(message: Message):
     resp += f"🍀 Бонус удачи: +{LUCK_CASE_BONUS_PER_LEVEL * 100:.0f}% к шансу редких призов за уровень"
     await message.reply(resp)
 
-# /жиротрясы
 async def cmd_fat_leaderboard(message: Message):
     register_chat(message.chat.id)
     cid = message.chat.id
@@ -1298,7 +1288,6 @@ async def cmd_fat_leaderboard(message: Message):
         resp += f"{place} **{disp}** — {num}kg {re}\n"
     await message.reply(resp)
 
-# /жирзвания
 async def cmd_show_ranks(message: Message):
     register_chat(message.chat.id)
     resp = "🎖️ **Система званий**\n\n"
@@ -1307,7 +1296,6 @@ async def cmd_show_ranks(message: Message):
         resp += f"{r['emoji']} **{r['name']}** — {rg} kg\n"
     await message.reply(resp)
 
-# /жиркулдаун
 async def cmd_cooldown_info(message: Message):
     register_chat(message.chat.id)
     cid = message.chat.id
@@ -1336,7 +1324,6 @@ async def cmd_cooldown_info(message: Message):
     resp += f"**/жиркейс**\nКулдаун: {case_cd:.1f} ч\nСтатус: {'✅ Доступен' if case_can else f'⏳ {format_time(case_rem)}'}"
     await message.reply(resp)
 
-# /инвентарь
 async def cmd_show_inventory(message: Message):
     register_chat(message.chat.id)
     cid = message.chat.id
@@ -1374,7 +1361,6 @@ async def cmd_show_inventory(message: Message):
         resp += f"📦 **Предметы**\n{itxt}"
     await message.reply(resp[:4000])
 
-# /жирглобал
 async def cmd_global_leaderboard(message: Message):
     register_chat(message.chat.id)
     stats = []
@@ -1402,7 +1388,6 @@ async def cmd_global_leaderboard(message: Message):
     resp += f"📊 **Всего:** {len(stats)} чатов | {total_u} уч.\n⚖️ **Общая масса:** {total_disp} кг"
     await message.reply(resp)
 
-# /магазин
 async def cmd_shop(message: Message):
     register_chat(message.chat.id)
     cid = message.chat.id
@@ -1427,7 +1412,6 @@ async def cmd_shop(message: Message):
     resp += f"\n⏰ Обновление каждые {SHOP_UPDATE_HOURS} ч\nПоследнее: {last_str}\nСледующее: {next_str}"
     await message.reply(resp)
 
-# /купить
 async def cmd_buy(message: Message):
     register_chat(message.chat.id)
     parts = message.text.split() if message.text else []
@@ -1497,7 +1481,6 @@ async def cmd_buy(message: Message):
         resp += f"\n\n⭐ +{kg_reward} кг за повышение уровня! Теперь {new_lvl} уровень!"
     await message.reply(resp)
 
-# /продать
 async def cmd_sell(message: Message):
     register_chat(message.chat.id)
     parts = message.text.split() if message.text else []
@@ -1573,7 +1556,6 @@ async def cmd_sell(message: Message):
     resp = f"💰 **Продажа предмета**\n\n{uname} продал:\n\n📦 **{found}** x{amt}\n💎 Цена: {price} кг/шт\n🏷️ Продажа (70%): {sell_price} кг/шт\n💸 Получено: {total_gain} кг\n🍖 Новый вес: {new_num}kg"
     await message.reply(resp)
 
-# /датьжир
 async def cmd_give_fat(message: Message):
     register_chat(message.chat.id)
     if not message.reply_to_message:
@@ -1607,7 +1589,6 @@ async def cmd_give_fat(message: Message):
     update_user_data(cid, target.id, number=new_target)
     await message.reply(f"⚖️ **Перевод жира**\n\n{giver.full_name} → {target.full_name}\n📦 {amt} кг")
 
-# /датьпредмет
 async def cmd_give_item(message: Message):
     register_chat(message.chat.id)
     if not message.reply_to_message:
@@ -1633,7 +1614,6 @@ async def cmd_give_item(message: Message):
     giver_data = get_user_data(cid, giver.id, giver.full_name)
     target_data = get_user_data(cid, target.id, target.full_name)
     
-    # проверка кейсов
     for cid2, case in CASES.items():
         if cid2 != "daily" and case["name"].lower() in iname.lower():
             if not case.get("tradable", True):
@@ -1673,7 +1653,6 @@ async def cmd_give_item(message: Message):
     update_user_data(cid, target.id, item_counts=save_user_items(target_items))
     await message.reply(f"🎁 **Передача предмета**\n\n{giver.full_name} → {target.full_name}\n📦 **{found}** x{amt}")
 
-# /дуэль
 async def cmd_duel(message: Message):
     register_chat(message.chat.id)
     if not message.reply_to_message:
@@ -1757,49 +1736,7 @@ async def process_duel(cb: CallbackQuery):
         chall_data = get_user_data(cid, chall_id, chall.user.full_name)
         opp_data = get_user_data(cid, opp_id, opp.user.full_name)
         
-        # ===== АНИМАЦИЯ ДУЭЛИ (как в Discord) =====
-        c_name = chall.user.full_name[:15] + "..." if len(chall.user.full_name) > 15 else chall.user.full_name
-        o_name = opp.user.full_name[:15] + "..." if len(opp.user.full_name) > 15 else opp.user.full_name
-        max_len = max(len(c_name), len(o_name))
-        c_name = c_name.ljust(max_len)
-        o_name = o_name.ljust(max_len)
-        
-        duel_emojis = ["⬆️", "⬇️", "⚔️"]
-        line = [random.choice(duel_emojis) for _ in range(100)]
         result = random.randint(0, 2)
-        
-        if result == 0:
-            result_emoji = "⬆️"
-            result_text = f"🏆 **Победитель:** {chall.user.full_name}"
-        elif result == 1:
-            result_emoji = "⬇️"
-            result_text = f"🏆 **Победитель:** {opp.user.full_name}"
-        else:
-            result_emoji = "⚔️"
-            result_text = "🤝 **НИЧЬЯ!** 🤝"
-        
-        line[57] = result_emoji
-        anim_msg = await cb.message.reply(f"**{c_name}**\n**⚔️ ДУЭЛЬ ⚔️**\n**{o_name}**")
-        
-        animation_frames = [(1,5),(2,10),(3,15),(4,20),(5,25),(6,30),(7,35),(8,39),(9,43),(10,47),(11,50),(12,52),(13,54),(14,55),(15,56),(16,56),(17,57),(18,57),(19,57),(20,57)]
-        
-        for frame_num, center_pos in animation_frames:
-            visible = line[center_pos-4:center_pos+5]
-            display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-            try:
-                await anim_msg.edit_text(f"**{c_name}**\n**{display_line}**\n**{o_name}**")
-            except:
-                pass
-            await asyncio.sleep(0.5)
-        
-        visible = line[53:62]
-        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-        try:
-            await anim_msg.edit_text(f"**{c_name}**\n**{display_line}**\n**{o_name}**\n\n{result_text}")
-        except:
-            pass
-        await asyncio.sleep(1.5)
-        # ===== КОНЕЦ АНИМАЦИИ =====
         
         if result == 0:
             winner, loser = chall.user, opp.user
@@ -1822,7 +1759,7 @@ async def process_duel(cb: CallbackQuery):
         
         update_user_data(cid, chall_id, duel_active=0)
         update_user_data(cid, opp_id, duel_active=0)
-        await anim_msg.reply(f"⚔️ **ДУЭЛЬ ЗАВЕРШЕНА!** ⚔️\n\n{res_text}")
+        await cb.message.reply(f"⚔️ **ДУЭЛЬ ЗАВЕРШЕНА!** ⚔️\n\n{res_text}")
         
     elif action == 'decline':
         chall_id = int(parts[2])
@@ -1834,8 +1771,7 @@ async def process_duel(cb: CallbackQuery):
         update_user_data(cid, chall_id, duel_active=0)
         update_user_data(cid, opp_id, duel_active=0)
         await cb.message.edit_text(f"❌ **Дуэль отклонена**\n\n{cb.from_user.full_name} отказался!", reply_markup=None)
-        
-# /отменавсё
+
 async def cmd_cancel_all(message: Message):
     register_chat(message.chat.id)
     cid = message.chat.id
@@ -1845,21 +1781,11 @@ async def cmd_cancel_all(message: Message):
     
     if data.get('duel_active'):
         update_user_data(cid, uid, duel_active=0, duel_opponent=None, duel_amount=0, duel_message_id=None, duel_initiator=0, duel_start_time=None)
+        if data.get('duel_opponent'):
+            update_user_data(cid, int(data['duel_opponent']), duel_active=0, duel_opponent=None, duel_amount=0, duel_message_id=None, duel_initiator=0, duel_start_time=None)
         cancelled.append("⚔️ Дуэль")
     
     if data.get('upgrade_active'):
-        last_cmd = data.get('last_command')
-        if last_cmd == "upgrade_select":
-            items = get_user_items(data['item_counts'])
-            items[data.get('last_command_target')] = items.get(data.get('last_command_target'), 0) + 1
-            update_user_data(cid, uid, item_counts=save_user_items(items))
-        elif last_cmd == "upgrade_kg_select":
-            try:
-                amt = int(data.get('last_command_target', 0))
-                new_num = data['current_number'] + amt
-                update_user_data(cid, uid, number=new_num)
-            except:
-                pass
         update_user_data(cid, uid, upgrade_active=0, upgrade_data=None, last_command=None, last_command_target=None, last_command_use_time=None)
         cancelled.append("🔧 Апгрейд")
     
@@ -1876,7 +1802,6 @@ async def cmd_cancel_all(message: Message):
     else:
         await message.reply("ℹ️ Нет активных действий для отмены!")
 
-# /апгрейдюзер
 async def cmd_upgrade_user(message: Message):
     register_chat(message.chat.id)
     parts = message.text.split() if message.text else []
@@ -1978,7 +1903,6 @@ async def process_prestige(cb: CallbackQuery):
     update_user_data(cid, uid, current_number=0, item_counts='{}', cases_dict={}, prestige=new_prestige, consecutive_plus=0, consecutive_minus=0, jackpot_pity=0, shadow_upgrade_chance=0)
     await cb.message.edit_text(f"🌟 **ПРЕСТИЖ ПОЛУЧЕН!** 🌟\n\n{uname} достиг {new_prestige} уровня престижа!\n\nВес сброшен до 0\nПредметы удалены\nУлучшения сохранены!\nОпыт и уровень сохранены!")
 
-# /апгрейд
 async def cmd_upgrade(message: Message):
     register_chat(message.chat.id)
     cid = message.chat.id
@@ -1987,108 +1911,66 @@ async def cmd_upgrade(message: Message):
     data = get_user_data(cid, uid, uname)
     
     if data.get('upgrade_active', 0) == 1:
-        await message.reply("⚠️ У вас уже есть активный апгрейд! Дождитесь его завершения или используйте `/отменавсё`.")
+        await message.reply("⚠️ У вас уже есть активный апгрейд! Используйте `/отменавсё` для отмены.")
         return
     
     items_dict = get_user_items(data['item_counts'])
-    
-    # Собираем предметы, которые можно улучшить (у которых есть цена и есть в наличии)
-    available_items = []
-    for item_name, count in items_dict.items():
-        price = get_item_price(item_name)
-        if price > 0 and count > 0:
-            # Проверяем, есть ли куда улучшать
-            possible = get_possible_upgrades(item_name, count)
+    available = []
+    for iname, cnt in items_dict.items():
+        price = get_item_price(iname)
+        if price > 0 and cnt > 0:
+            possible = get_possible_upgrades(iname, cnt)
             if possible:
-                available_items.append({
-                    "name": item_name,
-                    "count": count,
-                    "price": price,
-                    "emoji": ITEM_EMOJIS.get(item_name, "📦")
-                })
+                available.append({"name": iname, "count": cnt, "price": price, "emoji": ITEM_EMOJIS.get(iname, "📦")})
     
-    available_items.sort(key=lambda x: x["price"])
+    available.sort(key=lambda x: x["price"])
     
-    if not available_items:
-        await message.reply("❌ У вас нет предметов, которые можно улучшить!")
+    if not available:
+        await message.reply("❌ У вас нет предметов для улучшения!")
         return
     
     parts = message.text.split() if message.text else []
-    
-    # Если нет номера - показываем список
     if len(parts) < 2:
-        resp = f"🔧 **АПГРЕЙД ПРЕДМЕТОВ** 🔧\n\n{uname}, выберите предмет для улучшения:\n"
-        resp += "Используйте `/апгрейд [номер]`\n\n"
-        
-        for i, item in enumerate(available_items[:20], 1):
-            resp += f"**{i}.** {item['emoji']} **{item['name']}** — {item['count']} шт — {item['price']} кг\n"
-        
-        if len(available_items) > 20:
-            resp += f"\n... и ещё {len(available_items) - 20} предметов"
-        
-        await message.reply(resp)
+        resp = f"🔧 **АПГРЕЙД ПРЕДМЕТОВ** 🔧\n\n{uname}, выберите предмет:\n"
+        for i, it in enumerate(available[:20], 1):
+            resp += f"**{i}.** {it['emoji']} **{it['name']}** — {it['count']} шт — {it['price']} кг\n"
+        await message.reply(resp + "\nИспользуйте `/апгрейд [номер]`")
         return
     
-    # Выбор предмета
     try:
-        item_index = int(parts[1]) - 1
-        if item_index < 0 or item_index >= len(available_items):
-            await message.reply(f"❌ Неверный номер! Введите число от 1 до {len(available_items)}")
+        idx = int(parts[1]) - 1
+        if idx < 0 or idx >= len(available):
+            await message.reply(f"❌ Номер от 1 до {len(available)}")
             return
-    except ValueError:
-        await message.reply("❌ Введите корректный номер!")
+    except:
+        await message.reply("❌ Введите число!")
         return
     
-    selected = available_items[item_index]
-    
-    # Списываем 1 предмет из инвентаря
+    selected = available[idx]
     items_dict[selected["name"]] -= 1
     if items_dict[selected["name"]] <= 0:
         del items_dict[selected["name"]]
-    
     update_user_data(cid, uid, item_counts=save_user_items(items_dict))
     
-    # Получаем возможные улучшения для этого предмета
-    possible_upgrades = get_possible_upgrades(selected["name"], 1)
-    
-    if not possible_upgrades:
-        # Возвращаем предмет обратно
+    upgrades = get_possible_upgrades(selected["name"], 1)
+    if not upgrades:
         items_dict[selected["name"]] = items_dict.get(selected["name"], 0) + 1
         update_user_data(cid, uid, item_counts=save_user_items(items_dict))
-        await message.reply(f"❌ Для **{selected['emoji']} {selected['name']}** нет доступных улучшений! Предмет возвращён.")
+        await message.reply(f"❌ Для **{selected['emoji']} {selected['name']}** нет улучшений!")
         return
     
-    # Сохраняем состояние апгрейда
-    update_user_data(
-        cid, uid,
-        last_command="upgrade_select",
-        last_command_target=selected["name"],
-        last_command_use_time=datetime.now(),
-        upgrade_active=1,
-        upgrade_data=json.dumps({
-            'source_item': selected["name"],
-            'source_emoji': selected['emoji'],
-            'possible': possible_upgrades
-        })
-    )
+    update_user_data(cid, uid, last_command="upgrade_select", last_command_target=selected["name"], last_command_use_time=datetime.now(), upgrade_active=1, upgrade_data=json.dumps({'possible': upgrades, 'source_emoji': selected['emoji']}))
     
-    resp = f"🔧 **ВЫБОР ЦЕЛИ АПГРЕЙДА** 🔧\n\n"
-    resp += f"{uname}, вы выбрали: **{selected['emoji']} {selected['name']}**\n\n"
-    resp += f"Теперь выберите цель (используйте `/выбрать [номер]`):\n\n"
-    
-    for i, up in enumerate(possible_upgrades[:20], 1):
-        resp += f"**{i}.** {up['emoji']} **{up['name']}** — {up['chance']*100:.1f}% шанс\n"
-    
-    if len(possible_upgrades) > 20:
-        resp += f"\n... и ещё {len(possible_upgrades) - 20} вариантов"
-    
-    await message.reply(resp)
+    resp = f"🔧 **ВЫБОР ЦЕЛИ** 🔧\n\n{uname}, выбрали: {selected['emoji']} {selected['name']}\n\nЦели:\n"
+    for i, up in enumerate(upgrades[:20], 1):
+        resp += f"**{i}.** {up['emoji']} **{up['name']}** — {up['chance']*100:.1f}%\n"
+    await message.reply(resp + "\nИспользуйте `/выбрать [номер]`")
 
-# /апгрейдкг
 async def cmd_upgrade_kg(message: Message):
+    register_chat(message.chat.id)
     parts = message.text.split() if message.text else []
     if len(parts) < 2:
-        await message.reply("❌ Использование: `/апгрейдкг [количество кг]`")
+        await message.reply("❌ Использование: `/апгрейдкг [количество]`")
         return
     try:
         amt = int(parts[1])
@@ -2102,6 +1984,9 @@ async def cmd_upgrade_kg(message: Message):
     cid = message.chat.id
     uid = message.from_user.id
     data = get_user_data(cid, uid)
+    if data.get('upgrade_active', 0) == 1:
+        await message.reply("⚠️ У вас уже есть активный апгрейд! Используйте `/отменавсё`.")
+        return
     if data['current_number'] < amt:
         await message.reply(f"❌ Недостаточно кг! Есть: {data['current_number']}")
         return
@@ -2124,28 +2009,24 @@ async def cmd_upgrade_kg(message: Message):
         await message.reply(f"❌ На {amt} кг нет доступных улучшений!")
         return
     
-    resp = f"💱 **АПГРЕЙД {amt} КГ** 💱\n\nВыберите цель:\n"
-    for i, p in enumerate(possible[:15], 1):
-        resp += f"**{i}.** {p['emoji']} {p['name']} — {p['chance']*100:.1f}% (нужно: {p['price']} кг)\n"
-    resp += f"\nИспользуйте `/выбрать [номер]`\n💸 {amt} кг уже списаны!"
-    
     new_num = data['current_number'] - amt
     update_user_data(cid, uid, number=new_num, last_command="upgrade_kg_select", last_command_target=str(amt), last_command_use_time=datetime.now(), upgrade_active=1, upgrade_data=json.dumps({'amount': amt, 'possible': possible}))
-    await message.reply(resp)
+    
+    resp = f"💱 **АПГРЕЙД {amt} КГ** 💱\n\nЦели:\n"
+    for i, p in enumerate(possible[:15], 1):
+        resp += f"**{i}.** {p['emoji']} {p['name']} — {p['chance']*100:.1f}% (нужно {p['price']} кг)\n"
+    await message.reply(resp + f"\nИспользуйте `/выбрать [номер]`\n💸 {amt} кг списаны!")
 
-# /выбрать
 async def cmd_choose(message: Message):
     register_chat(message.chat.id)
     parts = message.text.split() if message.text else []
-    
     if len(parts) < 2:
-        await message.reply("❌ Укажите номер!\nИспользование: `/выбрать [номер]`")
+        await message.reply("❌ Укажите номер!")
         return
-    
     try:
         choice = int(parts[1]) - 1
-    except ValueError:
-        await message.reply("❌ Введите корректный номер!")
+    except:
+        await message.reply("❌ Введите число!")
         return
     
     cid = message.chat.id
@@ -2153,221 +2034,85 @@ async def cmd_choose(message: Message):
     uname = message.from_user.full_name
     data = get_user_data(cid, uid, uname)
     
-    if data.get('upgrade_active', 0) != 1:
-        await message.reply("❌ У вас нет активного апгрейда! Сначала используйте `/апгрейд` или `/апгрейдкг`.")
+    if data.get('upgrade_active') != 1:
+        await message.reply("❌ Нет активного апгрейда!")
         return
     
     last_cmd = data.get('last_command')
     last_use = data.get('last_command_use_time')
-    
     if isinstance(last_use, str):
         last_use = datetime.fromisoformat(last_use) if last_use else None
-    
     if not last_cmd or not last_use or (datetime.now() - last_use).total_seconds() > 300:
-        await message.reply("❌ Время ожидания истекло. Используйте команду заново!")
-        update_user_data(cid, uid, upgrade_active=0, upgrade_data=None, last_command=None, last_command_target=None, last_command_use_time=None)
+        await message.reply("❌ Время истекло!")
+        update_user_data(cid, uid, upgrade_active=0)
         return
     
-    upgrade_data = json.loads(data.get('upgrade_data', '{}'))
+    up_data = json.loads(data.get('upgrade_data', '{}'))
     
-    # ===== АПГРЕЙД КГ =====
     if last_cmd == "upgrade_kg_select":
-        amount = upgrade_data.get('amount', 0)
-        possible = upgrade_data.get('possible', [])
-        
+        amt = up_data.get('amount', 0)
+        possible = up_data.get('possible', [])
         if choice < 0 or choice >= len(possible):
-            await message.reply(f"❌ Неверный номер! Введите число от 1 до {len(possible)}")
-            update_user_data(cid, uid, upgrade_active=0, upgrade_data=None)
+            await message.reply(f"❌ Номер от 1 до {len(possible)}")
+            update_user_data(cid, uid, upgrade_active=0)
             return
-        
         target = possible[choice]
         
-        # Получаем актуальные данные
         data = get_user_data(cid, uid, uname)
         shadow = data.get('shadow_upgrade_chance', 0)
-        prestige_luck = get_prestige_luck(data.get('prestige', 0))
-        luck_upgrade = data.get('luck_upgrade', 0)
+        pb = 1 + get_prestige_luck(data.get('prestige', 0))
+        lb = 1 + (data.get('luck_upgrade', 0) * LUCK_UPGRADE_BONUS_PER_LEVEL / 100)
+        real = min(target['chance'] * pb * lb + shadow / 100, 1.0)
         
-        prestige_bonus = 1 + prestige_luck
-        luck_bonus = 1 + (luck_upgrade * LUCK_UPGRADE_BONUS_PER_LEVEL / 100)
-        base_chance = target['chance']
-        real_chance = min(base_chance * prestige_bonus * luck_bonus + shadow / 100, 1.0)
-        display_chance = base_chance * prestige_bonus * luck_bonus * 100
-        
-        # АНИМАЦИЯ
-        upgrade_emojis = ["🟥", "🟩"]
-        line = [random.choice(upgrade_emojis) for _ in range(100)]
-        
-        roll = random.random()
-        success = roll < real_chance
-        
-        if success:
+        if random.random() < real:
             new_shadow = max(0, shadow - 8)
-            result_emoji = "🟩"
-            result_text = "✅ **УСПЕХ!** ✅"
-        else:
-            new_shadow = min(32, shadow + 4)
-            result_emoji = "🟥"
-            result_text = "❌ **НЕУДАЧА!** ❌"
-        
-        line[57] = result_emoji
-        
-        anim_text = f"**{uname}** улучшает {amount} кг в:\n"
-        anim_text += f"{target['emoji']} **{target['name']}**\n\n"
-        anim_text += f"Шанс: **{display_chance:.1f}%**"
-        
-        anim_msg = await message.reply(anim_text)
-        
-        # Анимация полоски
-        animation_frames = [(1,5),(2,10),(3,15),(4,20),(5,25),(6,30),(7,35),(8,39),(9,43),(10,47),(11,50),(12,52),(13,54),(14,55),(15,56),(16,56),(17,57),(18,57),(19,57),(20,57)]
-        
-        last_text = None
-        for frame_num, center_pos in animation_frames:
-            visible = line[center_pos-4:center_pos+5]
-            display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-            frame_text = f"**{uname}** улучшает {amount} кг в:\n{target['emoji']} **{target['name']}**\n\n**{display_line}**\n\nШанс: **{display_chance:.1f}%**"
-            if frame_text != last_text:
-                try:
-                    await anim_msg.edit_text(frame_text)
-                    last_text = frame_text
-                except:
-                    pass
-            await asyncio.sleep(0.5)
-        
-        # Финальный кадр
-        visible = line[53:62]
-        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-        try:
-            await anim_msg.edit_text(f"**{display_line}**\n\n{result_text}")
-        except:
-            pass
-        
-        await asyncio.sleep(1.5)
-        
-        # Обработка результата
-        if success:
-            if target.get('is_case', False):
-                cases_dict = data.get('cases_dict', {}).copy()
-                cases_dict[target['case_id']] = cases_dict.get(target['case_id'], 0) + 1
-                update_user_data(cid, uid, cases_dict=cases_dict, shadow_upgrade_chance=new_shadow, upgrade_active=0, upgrade_data=None)
-                result_desc = f"✅ **Поздравляем!**\n\n{amount} кг → {target['emoji']} **{target['name']}**\n\nПредмет успешно получен!"
+            if target.get('is_case'):
+                cases = data.get('cases_dict', {}).copy()
+                cases[target['case_id']] = cases.get(target['case_id'], 0) + 1
+                update_user_data(cid, uid, cases_dict=cases, shadow_upgrade_chance=new_shadow, upgrade_active=0)
             else:
-                items_dict = get_user_items(data['item_counts'])
-                items_dict[target['name']] = items_dict.get(target['name'], 0) + 1
-                update_user_data(cid, uid, item_counts=save_user_items(items_dict), shadow_upgrade_chance=new_shadow, upgrade_active=0, upgrade_data=None)
-                result_desc = f"✅ **Поздравляем!**\n\n{amount} кг → {target['emoji']} **{target['name']}**\n\nПредмет успешно получен!"
-            
-            levels_gained, kg_reward, new_level = add_xp(cid, uid, XP_PER_UPGRADE_KG)
-            if levels_gained > 0:
-                result_desc += f"\n\n⭐ **ПОВЫШЕНИЕ УРОВНЯ!** +{kg_reward} кг! Теперь у вас **{new_level}** уровень!"
-        else:
-            update_user_data(cid, uid, shadow_upgrade_chance=new_shadow, upgrade_active=0, upgrade_data=None)
-            result_desc = f"❌ **Неудача!**\n\n{amount} кг сгорели в процессе улучшения!"
-        
-        await anim_msg.reply(result_desc)
-    
-    # ===== АПГРЕЙД ПРЕДМЕТА =====
-    elif last_cmd == "upgrade_select":
-        source_item = data.get('last_command_target')
-        source_emoji = upgrade_data.get('source_emoji', '📦')
-        possible = upgrade_data.get('possible', [])
-        
-        if not source_item:
-            await message.reply("❌ Ошибка: не выбран исходный предмет!")
-            update_user_data(cid, uid, upgrade_active=0, upgrade_data=None)
-            return
-        
-        if choice < 0 or choice >= len(possible):
-            await message.reply(f"❌ Неверный номер! Введите число от 1 до {len(possible)}")
-            update_user_data(cid, uid, upgrade_active=0, upgrade_data=None)
-            return
-        
-        target = possible[choice]
-        
-        # Получаем актуальные данные
-        data = get_user_data(cid, uid, uname)
-        shadow = data.get('shadow_upgrade_chance', 0)
-        prestige_luck = get_prestige_luck(data.get('prestige', 0))
-        luck_upgrade = data.get('luck_upgrade', 0)
-        
-        prestige_bonus = 1 + prestige_luck
-        luck_bonus = 1 + (luck_upgrade * LUCK_UPGRADE_BONUS_PER_LEVEL / 100)
-        base_chance = target['chance']
-        real_chance = min(base_chance * prestige_bonus * luck_bonus + shadow / 100, 1.0)
-        display_chance = base_chance * prestige_bonus * luck_bonus * 100
-        
-        # АНИМАЦИЯ
-        upgrade_emojis = ["🟥", "🟩"]
-        line = [random.choice(upgrade_emojis) for _ in range(100)]
-        
-        roll = random.random()
-        success = roll < real_chance
-        
-        if success:
-            new_shadow = max(0, shadow - 8)
-            result_emoji = "🟩"
-            result_text = "✅ **УСПЕХ!** ✅"
+                items = get_user_items(data['item_counts'])
+                items[target['name']] = items.get(target['name'], 0) + 1
+                update_user_data(cid, uid, item_counts=save_user_items(items), shadow_upgrade_chance=new_shadow, upgrade_active=0)
+            add_xp(cid, uid, XP_PER_UPGRADE_KG)
+            await message.reply(f"✅ **УСПЕХ!** {amt} кг → {target['emoji']} {target['name']}")
         else:
             new_shadow = min(32, shadow + 4)
-            result_emoji = "🟥"
-            result_text = "❌ **НЕУДАЧА!** ❌"
+            update_user_data(cid, uid, shadow_upgrade_chance=new_shadow, upgrade_active=0)
+            await message.reply(f"❌ **НЕУДАЧА!** {amt} кг сгорели!")
+    
+    elif last_cmd == "upgrade_select":
+        source = data.get('last_command_target')
+        possible = up_data.get('possible', [])
+        source_emoji = up_data.get('source_emoji', '📦')
+        if choice < 0 or choice >= len(possible):
+            await message.reply(f"❌ Номер от 1 до {len(possible)}")
+            update_user_data(cid, uid, upgrade_active=0)
+            return
+        target = possible[choice]
         
-        line[57] = result_emoji
+        data = get_user_data(cid, uid, uname)
+        shadow = data.get('shadow_upgrade_chance', 0)
+        pb = 1 + get_prestige_luck(data.get('prestige', 0))
+        lb = 1 + (data.get('luck_upgrade', 0) * LUCK_UPGRADE_BONUS_PER_LEVEL / 100)
+        real = min(target['chance'] * pb * lb + shadow / 100, 1.0)
         
-        anim_text = f"**{uname}** улучшает:\n"
-        anim_text += f"{source_emoji} **{source_item}** → {target['emoji']} **{target['name']}**\n\n"
-        anim_text += f"Шанс: **{display_chance:.1f}%**"
-        
-        anim_msg = await message.reply(anim_text)
-        
-        # Анимация полоски
-        animation_frames = [(1,5),(2,10),(3,15),(4,20),(5,25),(6,30),(7,35),(8,39),(9,43),(10,47),(11,50),(12,52),(13,54),(14,55),(15,56),(16,56),(17,57),(18,57),(19,57),(20,57)]
-        
-        last_text = None
-        for frame_num, center_pos in animation_frames:
-            visible = line[center_pos-4:center_pos+5]
-            display_line = "".join(visible[:4]) + "|" + visible[4] + "" + "".join(visible[5:])
-            frame_text = f"**{uname}** улучшает:\n{source_emoji} **{source_item}** → {target['emoji']} **{target['name']}**\n\n**{display_line}**\n\nШанс: **{display_chance:.1f}%**"
-            if frame_text != last_text:
-                try:
-                    await anim_msg.edit_text(frame_text)
-                    last_text = frame_text
-                except:
-                    pass
-            await asyncio.sleep(0.5)
-        
-        # Финальный кадр
-        visible = line[53:62]
-        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
-        try:
-            await anim_msg.edit_text(f"**{display_line}**\n\n{result_text}")
-        except:
-            pass
-        
-        await asyncio.sleep(1.5)
-        
-        # Обработка результата
-        items_dict = get_user_items(data['item_counts'])
-        
-        if success:
-            items_dict[target['name']] = items_dict.get(target['name'], 0) + 1
-            result_desc = f"✅ **Поздравляем!**\n\n{source_emoji} **{source_item}** → {target['emoji']} **{target['name']}**\n\nПредмет успешно улучшен!"
-            
-            levels_gained, kg_reward, new_level = add_xp(cid, uid, XP_PER_UPGRADE)
-            if levels_gained > 0:
-                result_desc += f"\n\n⭐ **ПОВЫШЕНИЕ УРОВНЯ!** +{kg_reward} кг! Теперь у вас **{new_level}** уровень!"
+        if random.random() < real:
+            new_shadow = max(0, shadow - 8)
+            items = get_user_items(data['item_counts'])
+            items[target['name']] = items.get(target['name'], 0) + 1
+            update_user_data(cid, uid, item_counts=save_user_items(items), shadow_upgrade_chance=new_shadow, upgrade_active=0)
+            add_xp(cid, uid, XP_PER_UPGRADE)
+            await message.reply(f"✅ **УСПЕХ!** {source_emoji} {source} → {target['emoji']} {target['name']}")
         else:
-            result_desc = f"❌ **Неудача!**\n\n{source_emoji} **{source_item}** был утерян в процессе улучшения!"
-        
-        update_user_data(cid, uid, item_counts=save_user_items(items_dict), shadow_upgrade_chance=new_shadow, upgrade_active=0, upgrade_data=None, last_command=None, last_command_target=None, last_command_use_time=None)
-        
-        await anim_msg.reply(result_desc)
+            new_shadow = min(32, shadow + 4)
+            update_user_data(cid, uid, shadow_upgrade_chance=new_shadow, upgrade_active=0)
+            await message.reply(f"❌ **НЕУДАЧА!** {source_emoji} {source} утерян!")
     
     else:
         await message.reply("❌ Неизвестный тип апгрейда!")
-        update_user_data(cid, uid, upgrade_active=0, upgrade_data=None)
+        update_user_data(cid, uid, upgrade_active=0)
 
-# Тестерские команды
 async def cmd_reset_cooldowns(message: Message):
     if not is_tester(message.from_user.id):
         await message.reply("❌ Нет прав!")
@@ -2450,7 +2195,6 @@ async def cmd_give_shop_item(message: Message):
     
     await message.reply(f"❌ Предмет '{iname}' не найден!")
 
-# /жирхелп
 async def cmd_help(message: Message):
     register_chat(message.chat.id)
     resp = """🍔 **ЖИРБОТ - ПОМОЩЬ** 🍔
@@ -2458,48 +2202,79 @@ async def cmd_help(message: Message):
 **Основные команды:**
 /жир - изменить свой вес
 /жиркейс - открыть кейс
-/жиркейс_шансы - шансы в ежедневном кейсе
+/жиркейс_шансы - шансы в кейсе
 /жиротрясы - таблица рекордов
 /профиль - профиль и прокачка
 /жирзвания - список званий
 /жиркулдаун - статус кулдаунов
-/инвентарь - посмотреть инвентарь
+/инвентарь - инвентарь
 /жирглобал - глобальный рейтинг чатов
 
 **Дуэли:**
-/дуэль [@username] [кг/"все"] - вызвать на дуэль (ответом на сообщение)
-/отменавсё - отменить все активные действия
+/дуэль [кг/"все"] - вызвать на дуэль (ответом на сообщение)
+/отменавсё - отменить все действия
 
 **Апгрейды:**
 /апгрейд - улучшить предмет
 /апгрейдкг [кол-во] - улучшить кг в предмет
-/выбрать [номер] - выбрать цель апгрейда
+/выбрать [номер] - выбрать цель
 /апгрейдюзер [номер] - улучшить характеристики
 
 **Экономика:**
-/магазин - магазин предметов
-/купить [слот] [кол-во] - купить предмет
-/продать [предмет] [кол-во] - продать предмет
-/датьжир [@user] [кол-во] - передать кг (ответом на сообщение)
-/датьпредмет [@user] [кол-во] [предмет] - передать предмет (ответом)
+/магазин - магазин
+/купить [слот] [кол-во] - купить
+/продать [предмет] [кол-во] - продать
+/датьжир [кол-во] - передать кг (ответом)
+/датьпредмет [кол-во] [название] - передать предмет (ответом)
 
 **Тестерские:**
-/сброскд - сбросить кулдауны всем
-/сбросвсех - сбросить вес всех на 0
-/выдатьпредмет [кол-во] [предмет] - выдать предмет себе
-/жир_сброс - сбросить вес пользователя (ответом)
+/сброскд, /сбросвсех, /жир_сброс, /выдатьпредмет
 
 ⭐ **ХАРАКТЕРИСТИКИ** ⭐
-• КД /жир — уменьшает время ожидания
-• КД кейса — уменьшает время ожидания кейса
-• Удача — повышает шансы в кейсах и апгрейдах
-• Прибавка — +5% к доходу от предметов за уровень
-• Престиж — +10% ко всем кг, +1% к шансам и +50% к опыту за уровень
-• Авто-жир — автоматический /жир
-
-🎬 **НАСТРОЙКИ АНИМАЦИЙ** 🎬
-Анимации можно включить/выключить командой /анимации"""
+• КД /жир — уменьшает кулдаун
+• КД кейса — уменьшает кулдаун кейса
+• Удача — повышает шансы
+• Прибавка — +5% к доходу за уровень
+• Престиж — +10% ко всему, +1% к шансам, +50% к опыту за уровень
+• Авто-жир — автоматический /жир"""
     await message.reply(resp)
+
+# ===== УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК =====
+@dp.message()
+async def universal_handler(message: Message):
+    if not message.text or not message.text.startswith('/'):
+        return
+    
+    if not hasattr(universal_handler, "bot_username"):
+        bot_info = await bot.me()
+        universal_handler.bot_username = bot_info.username.lower()
+    
+    full_text = message.text[1:].strip()
+    if '@' in full_text:
+        cmd_parts = full_text.split('@')
+        command = cmd_parts[0].lower()
+        mentioned_bot = cmd_parts[1].lower()
+        if mentioned_bot != universal_handler.bot_username:
+            return
+    else:
+        command = full_text.split()[0].lower()
+    
+    command_map = {
+        'start': cmd_help, 'help': cmd_help, 'жирхелп': cmd_help,
+        'жир': cmd_fat, 'жиркейс': cmd_fat_case, 'жиркейс_шансы': cmd_fat_case_chances,
+        'жиротрясы': cmd_fat_leaderboard, 'профиль': cmd_profile, 'жирзвания': cmd_show_ranks,
+        'жиркулдаун': cmd_cooldown_info, 'инвентарь': cmd_show_inventory, 'жирглобал': cmd_global_leaderboard,
+        'магазин': cmd_shop, 'купить': cmd_buy, 'продать': cmd_sell,
+        'датьжир': cmd_give_fat, 'датьпредмет': cmd_give_item,
+        'дуэль': cmd_duel, 'отменавсё': cmd_cancel_all,
+        'апгрейдюзер': cmd_upgrade_user, 'апгрейд': cmd_upgrade, 'апгрейдкг': cmd_upgrade_kg, 'выбрать': cmd_choose,
+        'анимации': cmd_animations,
+        'сброскд': cmd_reset_cooldowns, 'сбросвсех': cmd_reset_all_users, 'жир_сброс': cmd_fat_reset, 'выдатьпредмет': cmd_give_shop_item
+    }
+    
+    if command in command_map:
+        register_chat(message.chat.id)
+        await command_map[command](message)
 
 # ===== ЗАПУСК =====
 async def on_startup():
@@ -2516,36 +2291,6 @@ async def on_startup():
     asyncio.create_task(hourly_effects_loop())
 
 async def main():
-    # Регистрация всех команд
-    dp.message.register(cmd_help, Command("start"))
-    dp.message.register(cmd_help, Command("help"))
-    dp.message.register(cmd_help, Command("жирхелп"))
-    dp.message.register(cmd_fat, Command("жир"))
-    dp.message.register(cmd_fat_case, Command("жиркейс"))
-    dp.message.register(cmd_fat_case_chances, Command("жиркейс_шансы"))
-    dp.message.register(cmd_fat_leaderboard, Command("жиротрясы"))
-    dp.message.register(cmd_profile, Command("профиль"))
-    dp.message.register(cmd_show_ranks, Command("жирзвания"))
-    dp.message.register(cmd_cooldown_info, Command("жиркулдаун"))
-    dp.message.register(cmd_show_inventory, Command("инвентарь"))
-    dp.message.register(cmd_global_leaderboard, Command("жирглобал"))
-    dp.message.register(cmd_shop, Command("магазин"))
-    dp.message.register(cmd_buy, Command("купить"))
-    dp.message.register(cmd_sell, Command("продать"))
-    dp.message.register(cmd_give_fat, Command("датьжир"))
-    dp.message.register(cmd_give_item, Command("датьпредмет"))
-    dp.message.register(cmd_duel, Command("дуэль"))
-    dp.message.register(cmd_cancel_all, Command("отменавсё"))
-    dp.message.register(cmd_upgrade_user, Command("апгрейдюзер"))
-    dp.message.register(cmd_upgrade, Command("апгрейд"))
-    dp.message.register(cmd_upgrade_kg, Command("апгрейдкг"))
-    dp.message.register(cmd_choose, Command("выбрать"))
-    dp.message.register(cmd_animations, Command("анимации"))
-    dp.message.register(cmd_reset_cooldowns, Command("сброскд"))
-    dp.message.register(cmd_reset_all_users, Command("сбросвсех"))
-    dp.message.register(cmd_fat_reset, Command("жир_сброс"))
-    dp.message.register(cmd_give_shop_item, Command("выдатьпредмет"))
-    
     await on_startup()
     await dp.start_polling(bot)
 
