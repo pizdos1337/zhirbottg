@@ -2239,7 +2239,7 @@ async def cmd_help(message: Message):
 • Авто-жир — автоматический /жир"""
     await message.reply(resp)
 
-# ===== УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК =====
+# ===== УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК С ПРЕОБРАЗОВАНИЕМ ЛАТИНСКИХ КОМАНД =====
 @dp.message()
 async def universal_handler(message: Message):
     if not message.text or not message.text.startswith('/'):
@@ -2250,15 +2250,60 @@ async def universal_handler(message: Message):
         universal_handler.bot_username = bot_info.username.lower()
     
     full_text = message.text[1:].strip()
-    if '@' in full_text:
-        cmd_parts = full_text.split('@')
-        command = cmd_parts[0].lower()
+    # Отделяем команду от аргументов и возможного @
+    if ' ' in full_text:
+        cmd_part = full_text.split(' ')[0]
+        args = full_text[len(cmd_part):].strip()
+    else:
+        cmd_part = full_text
+        args = ''
+    
+    # Обработка @имя_бота
+    if '@' in cmd_part:
+        cmd_parts = cmd_part.split('@')
+        raw_command = cmd_parts[0].lower()
         mentioned_bot = cmd_parts[1].lower()
         if mentioned_bot != universal_handler.bot_username:
-            return
+            return  # не наш бот
     else:
-        command = full_text.split()[0].lower()
+        raw_command = cmd_part.lower()
     
+    # Маппинг латинских команд на русские
+    command_map_latin = {
+        'fat': 'жир',
+        'fatcase': 'жиркейс',
+        'fatcase_chances': 'жиркейс_шансы',
+        'fattys': 'жиротрясы',
+        'fatstat': 'жирстат',      # если есть
+        'fatinfo': 'жиринфо',      # если есть
+        'ranks': 'жирзвания',
+        'cooldowns': 'жиркулдаун',
+        'inventory': 'инвентарь',
+        'shop': 'магазин',
+        'buy': 'купить',
+        'sell': 'продать',
+        'givefat': 'датьжир',
+        'giveitems': 'датьпредмет',
+        'ascend': 'возвышение',    # если есть
+        'upgrade': 'апгрейд',
+        'upgradekg': 'апгрейдкг',
+        'choose': 'выбрать',
+        'duel': 'дуэль',
+        'cancel': 'отменавсё',     # или отмена?
+        'profile': 'профиль',
+        'global': 'жирглобал',
+        'help': 'жирхелп',
+        'start': 'жирхелп',
+        'animations': 'анимации'
+    }
+    
+    # Преобразуем команду
+    if raw_command in command_map_latin:
+        command = command_map_latin[raw_command]
+    else:
+        command = raw_command  # оставляем как есть (уже русская или неизвестная)
+    
+    # Основной маппинг команд на функции
     command_map = {
         'start': cmd_help, 'help': cmd_help, 'жирхелп': cmd_help,
         'жир': cmd_fat, 'жиркейс': cmd_fat_case, 'жиркейс_шансы': cmd_fat_case_chances,
@@ -2274,6 +2319,8 @@ async def universal_handler(message: Message):
     
     if command in command_map:
         register_chat(message.chat.id)
+        # Восстанавливаем полный текст команды для совместимости (если нужно)
+        # Некоторые функции могут использовать message.text, но мы не меняем оригинал
         await command_map[command](message)
 
 # ===== ЗАПУСК =====
