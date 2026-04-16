@@ -2135,66 +2135,237 @@ async def cmd_upgrade_kg(message: Message):
 
 # /выбрать
 async def cmd_choose(message: Message):
+    register_chat(message.chat.id)
     parts = message.text.split() if message.text else []
+    
     if len(parts) < 2:
-        await message.reply("❌ Укажите номер!")
+        await message.reply("❌ Укажите номер!\nИспользование: `/выбрать [номер]`")
         return
+    
     try:
         choice = int(parts[1]) - 1
-    except:
-        await message.reply("❌ Введите число!")
+    except ValueError:
+        await message.reply("❌ Введите корректный номер!")
         return
     
     cid = message.chat.id
     uid = message.from_user.id
-    data = get_user_data(cid, uid)
+    uname = message.from_user.full_name
+    data = get_user_data(cid, uid, uname)
     
-    if data.get('upgrade_active') != 1:
-        await message.reply("❌ Нет активного апгрейда!")
+    if data.get('upgrade_active', 0) != 1:
+        await message.reply("❌ У вас нет активного апгрейда! Сначала используйте `/апгрейд` или `/апгрейдкг`.")
         return
     
     last_cmd = data.get('last_command')
     last_use = data.get('last_command_use_time')
+    
     if isinstance(last_use, str):
         last_use = datetime.fromisoformat(last_use) if last_use else None
+    
     if not last_cmd or not last_use or (datetime.now() - last_use).total_seconds() > 300:
-        await message.reply("❌ Время истекло!")
-        update_user_data(cid, uid, upgrade_active=0)
+        await message.reply("❌ Время ожидания истекло. Используйте команду заново!")
+        update_user_data(cid, uid, upgrade_active=0, upgrade_data=None, last_command=None, last_command_target=None, last_command_use_time=None)
         return
     
+    upgrade_data = json.loads(data.get('upgrade_data', '{}'))
+    
+    # ===== АПГРЕЙД КГ =====
     if last_cmd == "upgrade_kg_select":
-        up_data = json.loads(data.get('upgrade_data', '{}'))
-        possible = up_data.get('possible', [])
-        amt = up_data.get('amount', 0)
+        amount = upgrade_data.get('amount', 0)
+        possible = upgrade_data.get('possible', [])
+        
         if choice < 0 or choice >= len(possible):
-            await message.reply(f"❌ Номер от 1 до {len(possible)}!")
+            await message.reply(f"❌ Неверный номер! Введите число от 1 до {len(possible)}")
+            update_user_data(cid, uid, upgrade_active=0, upgrade_data=None)
             return
+        
         target = possible[choice]
         
-        data = get_user_data(cid, uid)
+        # Получаем актуальные данные
+        data = get_user_data(cid, uid, uname)
         shadow = data.get('shadow_upgrade_chance', 0)
-        pb = 1 + get_prestige_luck(data.get('prestige', 0))
-        lb = 1 + (data.get('luck_upgrade', 0) * LUCK_UPGRADE_BONUS_PER_LEVEL / 100)
-        real = min(target['chance'] * pb * lb + shadow / 100, 1.0)
+        prestige_luck = get_prestige_luck(data.get('prestige', 0))
+        luck_upgrade = data.get('luck_upgrade', 0)
         
-        if random.random() < real:
+        prestige_bonus = 1 + prestige_luck
+        luck_bonus = 1 + (luck_upgrade * LUCK_UPGRADE_BONUS_PER_LEVEL / 100)
+        base_chance = target['chance']
+        real_chance = min(base_chance * prestige_bonus * luck_bonus + shadow / 100, 1.0)
+        display_chance = base_chance * prestige_bonus * luck_bonus * 100
+        
+        # АНИМАЦИЯ
+        upgrade_emojis = ["🟥", "🟩"]
+        line = [random.choice(upgrade_emojis) for _ in range(100)]
+        
+        roll = random.random()
+        success = roll < real_chance
+        
+        if success:
             new_shadow = max(0, shadow - 8)
-            if target.get('is_case'):
-                cases = data.get('cases_dict', {}).copy()
-                cases[target['case_id']] = cases.get(target['case_id'], 0) + 1
-                update_user_data(cid, uid, cases_dict=cases, shadow_upgrade_chance=new_shadow, upgrade_active=0)
-            else:
-                items = get_user_items(data['item_counts'])
-                items[target['name']] = items.get(target['name'], 0) + 1
-                update_user_data(cid, uid, item_counts=save_user_items(items), shadow_upgrade_chance=new_shadow, upgrade_active=0)
-            add_xp(cid, uid, XP_PER_UPGRADE_KG)
-            await message.reply(f"✅ **УСПЕХ!** {amt} кг → {target['emoji']} {target['name']}")
+            result_emoji = "🟩"
+            result_text = "✅ **УСПЕХ!** ✅"
         else:
             new_shadow = min(32, shadow + 4)
-            update_user_data(cid, uid, shadow_upgrade_chance=new_shadow, upgrade_active=0)
-            await message.reply(f"❌ **НЕУДАЧА!** {amt} кг сгорели!")
+            result_emoji = "🟥"
+            result_text = "❌ **НЕУДАЧА!** ❌"
+        
+        line[57] = result_emoji
+        
+        anim_text = f"**{uname}** улучшает {amount} кг в:\n"
+        anim_text += f"{target['emoji']} **{target['name']}**\n\n"
+        anim_text += f"Шанс: **{display_chance:.1f}%**"
+        
+        anim_msg = await message.reply(anim_text)
+        
+        # Анимация полоски
+        animation_frames = [(1,5),(2,10),(3,15),(4,20),(5,25),(6,30),(7,35),(8,39),(9,43),(10,47),(11,50),(12,52),(13,54),(14,55),(15,56),(16,56),(17,57),(18,57),(19,57),(20,57)]
+        
+        last_text = None
+        for frame_num, center_pos in animation_frames:
+            visible = line[center_pos-4:center_pos+5]
+            display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+            frame_text = f"**{uname}** улучшает {amount} кг в:\n{target['emoji']} **{target['name']}**\n\n**{display_line}**\n\nШанс: **{display_chance:.1f}%**"
+            if frame_text != last_text:
+                try:
+                    await anim_msg.edit_text(frame_text)
+                    last_text = frame_text
+                except:
+                    pass
+            await asyncio.sleep(0.5)
+        
+        # Финальный кадр
+        visible = line[53:62]
+        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+        try:
+            await anim_msg.edit_text(f"**{display_line}**\n\n{result_text}")
+        except:
+            pass
+        
+        await asyncio.sleep(1.5)
+        
+        # Обработка результата
+        if success:
+            if target.get('is_case', False):
+                cases_dict = data.get('cases_dict', {}).copy()
+                cases_dict[target['case_id']] = cases_dict.get(target['case_id'], 0) + 1
+                update_user_data(cid, uid, cases_dict=cases_dict, shadow_upgrade_chance=new_shadow, upgrade_active=0, upgrade_data=None)
+                result_desc = f"✅ **Поздравляем!**\n\n{amount} кг → {target['emoji']} **{target['name']}**\n\nПредмет успешно получен!"
+            else:
+                items_dict = get_user_items(data['item_counts'])
+                items_dict[target['name']] = items_dict.get(target['name'], 0) + 1
+                update_user_data(cid, uid, item_counts=save_user_items(items_dict), shadow_upgrade_chance=new_shadow, upgrade_active=0, upgrade_data=None)
+                result_desc = f"✅ **Поздравляем!**\n\n{amount} кг → {target['emoji']} **{target['name']}**\n\nПредмет успешно получен!"
+            
+            levels_gained, kg_reward, new_level = add_xp(cid, uid, XP_PER_UPGRADE_KG)
+            if levels_gained > 0:
+                result_desc += f"\n\n⭐ **ПОВЫШЕНИЕ УРОВНЯ!** +{kg_reward} кг! Теперь у вас **{new_level}** уровень!"
+        else:
+            update_user_data(cid, uid, shadow_upgrade_chance=new_shadow, upgrade_active=0, upgrade_data=None)
+            result_desc = f"❌ **Неудача!**\n\n{amount} кг сгорели в процессе улучшения!"
+        
+        await anim_msg.reply(result_desc)
+    
+    # ===== АПГРЕЙД ПРЕДМЕТА =====
+    elif last_cmd == "upgrade_select":
+        source_item = data.get('last_command_target')
+        source_emoji = upgrade_data.get('source_emoji', '📦')
+        possible = upgrade_data.get('possible', [])
+        
+        if not source_item:
+            await message.reply("❌ Ошибка: не выбран исходный предмет!")
+            update_user_data(cid, uid, upgrade_active=0, upgrade_data=None)
+            return
+        
+        if choice < 0 or choice >= len(possible):
+            await message.reply(f"❌ Неверный номер! Введите число от 1 до {len(possible)}")
+            update_user_data(cid, uid, upgrade_active=0, upgrade_data=None)
+            return
+        
+        target = possible[choice]
+        
+        # Получаем актуальные данные
+        data = get_user_data(cid, uid, uname)
+        shadow = data.get('shadow_upgrade_chance', 0)
+        prestige_luck = get_prestige_luck(data.get('prestige', 0))
+        luck_upgrade = data.get('luck_upgrade', 0)
+        
+        prestige_bonus = 1 + prestige_luck
+        luck_bonus = 1 + (luck_upgrade * LUCK_UPGRADE_BONUS_PER_LEVEL / 100)
+        base_chance = target['chance']
+        real_chance = min(base_chance * prestige_bonus * luck_bonus + shadow / 100, 1.0)
+        display_chance = base_chance * prestige_bonus * luck_bonus * 100
+        
+        # АНИМАЦИЯ
+        upgrade_emojis = ["🟥", "🟩"]
+        line = [random.choice(upgrade_emojis) for _ in range(100)]
+        
+        roll = random.random()
+        success = roll < real_chance
+        
+        if success:
+            new_shadow = max(0, shadow - 8)
+            result_emoji = "🟩"
+            result_text = "✅ **УСПЕХ!** ✅"
+        else:
+            new_shadow = min(32, shadow + 4)
+            result_emoji = "🟥"
+            result_text = "❌ **НЕУДАЧА!** ❌"
+        
+        line[57] = result_emoji
+        
+        anim_text = f"**{uname}** улучшает:\n"
+        anim_text += f"{source_emoji} **{source_item}** → {target['emoji']} **{target['name']}**\n\n"
+        anim_text += f"Шанс: **{display_chance:.1f}%**"
+        
+        anim_msg = await message.reply(anim_text)
+        
+        # Анимация полоски
+        animation_frames = [(1,5),(2,10),(3,15),(4,20),(5,25),(6,30),(7,35),(8,39),(9,43),(10,47),(11,50),(12,52),(13,54),(14,55),(15,56),(16,56),(17,57),(18,57),(19,57),(20,57)]
+        
+        last_text = None
+        for frame_num, center_pos in animation_frames:
+            visible = line[center_pos-4:center_pos+5]
+            display_line = "".join(visible[:4]) + "|" + visible[4] + "" + "".join(visible[5:])
+            frame_text = f"**{uname}** улучшает:\n{source_emoji} **{source_item}** → {target['emoji']} **{target['name']}**\n\n**{display_line}**\n\nШанс: **{display_chance:.1f}%**"
+            if frame_text != last_text:
+                try:
+                    await anim_msg.edit_text(frame_text)
+                    last_text = frame_text
+                except:
+                    pass
+            await asyncio.sleep(0.5)
+        
+        # Финальный кадр
+        visible = line[53:62]
+        display_line = "".join(visible[:4]) + "|" + visible[4] + "|" + "".join(visible[5:])
+        try:
+            await anim_msg.edit_text(f"**{display_line}**\n\n{result_text}")
+        except:
+            pass
+        
+        await asyncio.sleep(1.5)
+        
+        # Обработка результата
+        items_dict = get_user_items(data['item_counts'])
+        
+        if success:
+            items_dict[target['name']] = items_dict.get(target['name'], 0) + 1
+            result_desc = f"✅ **Поздравляем!**\n\n{source_emoji} **{source_item}** → {target['emoji']} **{target['name']}**\n\nПредмет успешно улучшен!"
+            
+            levels_gained, kg_reward, new_level = add_xp(cid, uid, XP_PER_UPGRADE)
+            if levels_gained > 0:
+                result_desc += f"\n\n⭐ **ПОВЫШЕНИЕ УРОВНЯ!** +{kg_reward} кг! Теперь у вас **{new_level}** уровень!"
+        else:
+            result_desc = f"❌ **Неудача!**\n\n{source_emoji} **{source_item}** был утерян в процессе улучшения!"
+        
+        update_user_data(cid, uid, item_counts=save_user_items(items_dict), shadow_upgrade_chance=new_shadow, upgrade_active=0, upgrade_data=None, last_command=None, last_command_target=None, last_command_use_time=None)
+        
+        await anim_msg.reply(result_desc)
+    
     else:
         await message.reply("❌ Неизвестный тип апгрейда!")
+        update_user_data(cid, uid, upgrade_active=0, upgrade_data=None)
 
 # Тестерские команды
 async def cmd_reset_cooldowns(message: Message):
