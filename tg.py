@@ -1980,7 +1980,109 @@ async def process_prestige(cb: CallbackQuery):
 
 # /апгрейд
 async def cmd_upgrade(message: Message):
-    await message.reply("🔧 Используйте `/апгрейд [номер]` после просмотра предметов в инвентаре")
+    register_chat(message.chat.id)
+    cid = message.chat.id
+    uid = message.from_user.id
+    uname = message.from_user.full_name
+    data = get_user_data(cid, uid, uname)
+    
+    if data.get('upgrade_active', 0) == 1:
+        await message.reply("⚠️ У вас уже есть активный апгрейд! Дождитесь его завершения или используйте `/отменавсё`.")
+        return
+    
+    items_dict = get_user_items(data['item_counts'])
+    
+    # Собираем предметы, которые можно улучшить (у которых есть цена и есть в наличии)
+    available_items = []
+    for item_name, count in items_dict.items():
+        price = get_item_price(item_name)
+        if price > 0 and count > 0:
+            # Проверяем, есть ли куда улучшать
+            possible = get_possible_upgrades(item_name, count)
+            if possible:
+                available_items.append({
+                    "name": item_name,
+                    "count": count,
+                    "price": price,
+                    "emoji": ITEM_EMOJIS.get(item_name, "📦")
+                })
+    
+    available_items.sort(key=lambda x: x["price"])
+    
+    if not available_items:
+        await message.reply("❌ У вас нет предметов, которые можно улучшить!")
+        return
+    
+    parts = message.text.split() if message.text else []
+    
+    # Если нет номера - показываем список
+    if len(parts) < 2:
+        resp = f"🔧 **АПГРЕЙД ПРЕДМЕТОВ** 🔧\n\n{uname}, выберите предмет для улучшения:\n"
+        resp += "Используйте `/апгрейд [номер]`\n\n"
+        
+        for i, item in enumerate(available_items[:20], 1):
+            resp += f"**{i}.** {item['emoji']} **{item['name']}** — {item['count']} шт — {item['price']} кг\n"
+        
+        if len(available_items) > 20:
+            resp += f"\n... и ещё {len(available_items) - 20} предметов"
+        
+        await message.reply(resp)
+        return
+    
+    # Выбор предмета
+    try:
+        item_index = int(parts[1]) - 1
+        if item_index < 0 or item_index >= len(available_items):
+            await message.reply(f"❌ Неверный номер! Введите число от 1 до {len(available_items)}")
+            return
+    except ValueError:
+        await message.reply("❌ Введите корректный номер!")
+        return
+    
+    selected = available_items[item_index]
+    
+    # Списываем 1 предмет из инвентаря
+    items_dict[selected["name"]] -= 1
+    if items_dict[selected["name"]] <= 0:
+        del items_dict[selected["name"]]
+    
+    update_user_data(cid, uid, item_counts=save_user_items(items_dict))
+    
+    # Получаем возможные улучшения для этого предмета
+    possible_upgrades = get_possible_upgrades(selected["name"], 1)
+    
+    if not possible_upgrades:
+        # Возвращаем предмет обратно
+        items_dict[selected["name"]] = items_dict.get(selected["name"], 0) + 1
+        update_user_data(cid, uid, item_counts=save_user_items(items_dict))
+        await message.reply(f"❌ Для **{selected['emoji']} {selected['name']}** нет доступных улучшений! Предмет возвращён.")
+        return
+    
+    # Сохраняем состояние апгрейда
+    update_user_data(
+        cid, uid,
+        last_command="upgrade_select",
+        last_command_target=selected["name"],
+        last_command_use_time=datetime.now(),
+        upgrade_active=1,
+        upgrade_data=json.dumps({
+            'source_item': selected["name"],
+            'source_emoji': selected['emoji'],
+            'possible': possible_upgrades
+        })
+    )
+    
+    resp = f"🔧 **ВЫБОР ЦЕЛИ АПГРЕЙДА** 🔧\n\n"
+    resp += f"{uname}, вы выбрали: **{selected['emoji']} {selected['name']}**\n\n"
+    resp += f"Теперь выберите цель (используйте `/выбрать [номер]`):\n\n"
+    
+    for i, up in enumerate(possible_upgrades[:20], 1):
+        resp += f"**{i}.** {up['emoji']} **{up['name']}** — {up['chance']*100:.1f}% шанс\n"
+    
+    if len(possible_upgrades) > 20:
+        resp += f"\n... и ещё {len(possible_upgrades) - 20} вариантов"
+    
+    await message.reply(resp)
 
 # /апгрейдкг
 async def cmd_upgrade_kg(message: Message):
